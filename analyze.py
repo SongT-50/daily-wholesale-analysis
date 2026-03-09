@@ -33,6 +33,17 @@ def load_auction_data(date: str) -> dict | None:
         return json.load(f)
 
 
+def _filter_outliers(prices: list[int | float]) -> list[int | float]:
+    """이상치 제거 — 중앙값 기준 10배 초과 or 1/10 미만 제외"""
+    if len(prices) < 5:
+        return prices
+    sorted_p = sorted(prices)
+    median = sorted_p[len(sorted_p) // 2]
+    if median == 0:
+        return prices
+    return [p for p in prices if median / 10 <= p <= median * 10]
+
+
 def summarize_data(data: dict) -> str:
     """Gemini에 보낼 요약 텍스트 생성 (토큰 절약)"""
     date = data["date"]
@@ -68,7 +79,7 @@ def summarize_data(data: dict) -> str:
         # 상위 10개 품목
         top = sorted(product_stats.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
         for product, stats in top:
-            prices = stats["prices"]
+            prices = _filter_outliers(stats["prices"])
             avg_price = sum(prices) / len(prices) if prices else 0
             min_price = min(prices) if prices else 0
             max_price = max(prices) if prices else 0

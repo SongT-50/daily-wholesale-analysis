@@ -41,6 +41,17 @@ def aggregate_by_product(data: dict) -> dict[str, dict]:
     return stats
 
 
+def _filter_outliers(prices: list) -> list:
+    """이상치 제거 — 중앙값 기준 10배 초과 or 1/10 미만 제외"""
+    if len(prices) < 5:
+        return prices
+    sorted_p = sorted(prices)
+    median = sorted_p[len(sorted_p) // 2]
+    if median == 0:
+        return prices
+    return [p for p in prices if median / 10 <= p <= median * 10]
+
+
 def compare(today_date: str, prev_date: str) -> str:
     """두 날짜 비교"""
     today = load_data(today_date)
@@ -76,8 +87,12 @@ def compare(today_date: str, prev_date: str) -> str:
             continue
         p_stat = prev_stats[product]
 
-        t_avg = sum(t_stat["prices"]) / len(t_stat["prices"])
-        p_avg = sum(p_stat["prices"]) / len(p_stat["prices"])
+        t_prices = _filter_outliers(t_stat["prices"])
+        p_prices = _filter_outliers(p_stat["prices"])
+        if not t_prices or not p_prices:
+            continue
+        t_avg = sum(t_prices) / len(t_prices)
+        p_avg = sum(p_prices) / len(p_prices)
 
         if p_avg == 0:
             continue
