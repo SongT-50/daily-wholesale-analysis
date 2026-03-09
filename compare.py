@@ -26,14 +26,19 @@ def load_data(date: str) -> dict | None:
 
 
 def aggregate_by_product(data: dict) -> dict[str, dict]:
-    """전체 데이터를 품목별로 집계"""
+    """전체 데이터를 품목별로 집계 (kg당 단가 기준)"""
     stats: dict[str, dict] = {}
     for market in data["markets"].values():
         for item in market["items"]:
             product = item["product"]
+            unit_wt = item.get("unit_weight", 0)
+            price = item.get("price", 0)
+            per_kg = price / unit_wt if unit_wt > 0 else 0
+            if per_kg <= 0:
+                continue
             if product not in stats:
-                stats[product] = {"prices": [], "count": 0, "total_qty": 0}
-            stats[product]["prices"].append(item["price"])
+                stats[product] = {"per_kg_prices": [], "count": 0, "total_qty": 0}
+            stats[product]["per_kg_prices"].append(per_kg)
             stats[product]["count"] += 1
             qty = item["quantity"]
             if isinstance(qty, (int, float)):
@@ -67,8 +72,8 @@ def compare(today_date: str, prev_date: str) -> str:
 
     lines = [
         f"# 전일 대비 가격 변동 ({prev_date} → {today_date})\n",
-        f"| 품목 | 전일 평균가 | 오늘 평균가 | 변동률 | 오늘 거래건수 |",
-        f"|------|-----------|-----------|--------|------------|",
+        f"| 품목 | 전일 (원/kg) | 오늘 (원/kg) | 변동률 | 거래건수 |",
+        f"|------|------------|------------|--------|---------|",
     ]
 
     # 오늘 거래건수 상위 품목 기준
@@ -87,8 +92,8 @@ def compare(today_date: str, prev_date: str) -> str:
             continue
         p_stat = prev_stats[product]
 
-        t_prices = _filter_outliers(t_stat["prices"])
-        p_prices = _filter_outliers(p_stat["prices"])
+        t_prices = _filter_outliers(t_stat["per_kg_prices"])
+        p_prices = _filter_outliers(p_stat["per_kg_prices"])
         if not t_prices or not p_prices:
             continue
         t_avg = sum(t_prices) / len(t_prices)
@@ -110,7 +115,7 @@ def compare(today_date: str, prev_date: str) -> str:
             stable_count += 1
 
         lines.append(
-            f"| {product} | {p_avg:,.0f}원 | {t_avg:,.0f}원 | "
+            f"| {product} | {p_avg:,.0f} | {t_avg:,.0f} | "
             f"{arrow} {change:+.1f}% | {t_stat['count']:,}건 |"
         )
 

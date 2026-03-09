@@ -60,18 +60,25 @@ def summarize_data(data: dict) -> str:
 
         lines.append(f"\n## {name} ({len(items)}건)")
 
-        # 품목별 집계
+        # 품목별 집계 (kg당 단가 기준)
         product_stats: dict[str, dict] = {}
         for item in items:
             product = item["product"]
+            unit_wt = item.get("unit_weight", 0)
+            price = item.get("price", 0)
+            # kg당 단가 환산
+            per_kg = price / unit_wt if unit_wt > 0 else 0
+            if per_kg <= 0:
+                continue
             if product not in product_stats:
                 product_stats[product] = {
                     "count": 0,
-                    "prices": [],
+                    "per_kg_prices": [],
                     "total_qty": 0,
+                    "main_unit": unit_wt,
                 }
             product_stats[product]["count"] += 1
-            product_stats[product]["prices"].append(item["price"])
+            product_stats[product]["per_kg_prices"].append(per_kg)
             product_stats[product]["total_qty"] += (
                 item["quantity"] if isinstance(item["quantity"], (int, float)) else 0
             )
@@ -79,14 +86,14 @@ def summarize_data(data: dict) -> str:
         # 상위 10개 품목
         top = sorted(product_stats.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
         for product, stats in top:
-            prices = _filter_outliers(stats["prices"])
+            prices = _filter_outliers(stats["per_kg_prices"])
             avg_price = sum(prices) / len(prices) if prices else 0
             min_price = min(prices) if prices else 0
             max_price = max(prices) if prices else 0
             lines.append(
                 f"  - {product}: {stats['count']}건, "
-                f"평균 {avg_price:,.0f}원, "
-                f"범위 {min_price:,.0f}~{max_price:,.0f}원, "
+                f"평균 {avg_price:,.0f}원/kg, "
+                f"범위 {min_price:,.0f}~{max_price:,.0f}원/kg, "
                 f"총수량 {stats['total_qty']}건"
             )
 
