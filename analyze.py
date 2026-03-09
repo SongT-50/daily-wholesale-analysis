@@ -34,14 +34,16 @@ def load_auction_data(date: str) -> dict | None:
 
 
 def _filter_outliers(prices: list[int | float]) -> list[int | float]:
-    """이상치 제거 — 중앙값 기준 10배 초과 or 1/10 미만 제외"""
-    if len(prices) < 5:
+    """이상치 제거 — 절대 상한 + 중앙값 기준 5배 초과 or 1/5 미만 제외"""
+    # 절대 상한: kg당 100,000원 초과는 입력 오류 (팔레트 단위 등)
+    prices = [p for p in prices if p <= 100_000]
+    if len(prices) < 3:
         return prices
     sorted_p = sorted(prices)
     median = sorted_p[len(sorted_p) // 2]
     if median == 0:
         return prices
-    return [p for p in prices if median / 10 <= p <= median * 10]
+    return [p for p in prices if median / 5 <= p <= median * 5]
 
 
 def summarize_data(data: dict) -> str:
@@ -110,7 +112,7 @@ def analyze_with_gemini(summary: str, date: str) -> str:
 
 ## 분석 요청
 - 날짜: {date}
-- 대상: 전국 주요 도매시장 경매 데이터
+- 대상: 전국 도매시장 경매 데이터 (12개 시장, 38개 법인)
 
 ## 중요 용어
 - 정산일(trd_clcln_ymd): 경매 후 취소건 제외, 실제 확정된 거래 날짜
@@ -170,6 +172,87 @@ def _fallback_report(summary: str, date: str) -> str:
 """
 
 
+def _djc_report(data: dict, date: str) -> str:
+    """대전노은 대전중앙청과㈜ 전용 분석"""
+    from collections import Counter, defaultdict
+
+    items = []
+    for m in data["markets"].values():
+        for item in m["items"]:
+            if item.get("market_name") == "대전노은" and "대전중앙청과" in item.get("corp_name", ""):
+                items.append(item)
+
+    if not items:
+        return ""
+
+    lines = [f"\n---\n## 📌 대전노은 대전중앙청과㈜ 상세 ({len(items):,}건)\n"]
+
+    # 품목별 집계
+    product_stats: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "prices": [], "qty": 0, "origins": Counter()}
+    )
+    for item in items:
+        product = item["product"]
+        unit_wt = item.get("unit_weight", 0)
+        price = item.get("price", 0)
+        per_kg = price / unit_wt if unit_wt > 0 else 0
+        qty = item["quantity"] if isinstance(item["quantity"], (int, float)) else 0
+
+        product_stats[product]["count"] += 1
+        product_stats[product]["qty"] += qty
+        if per_kg > 0:
+            product_stats[product]["prices"].append(per_kg)
+        origin = item.get("origin", "-")
+        if origin and origin != "-":
+            product_stats[product]["origins"][origin] += 1
+
+    # 거래건수 상위 품목
+    top_products = sorted(product_stats.items(), key=lambda x: x[1]["count"], reverse=True)
+
+    lines.append("### 품목별 거래 현황\n")
+    lines.append("| 순위 | 품목 | 건수 | 총수량 | 평균(원/kg) | 범위 |")
+    lines.append("|------|------|------|--------|-----------|------|")
+    for i, (product, s) in enumerate(top_products[:20], 1):
+        prices = _filter_outliers(s["prices"])
+        if not prices:
+            continue
+        avg = sum(prices) / len(prices)
+        mn = min(prices)
+        mx = max(prices)
+        lines.append(
+            f"| {i} | {product} | {s['count']:,} | {s['qty']:,} | "
+            f"{avg:,.0f} | {mn:,.0f}~{mx:,.0f} |"
+        )
+
+    # 주요 품목 산지 분포
+    lines.append("\n### 주요 품목 산지 분포\n")
+    for product, s in top_products[:10]:
+        if not s["origins"]:
+            continue
+        lines.append(f"**{product}** ({s['count']:,}건)")
+        top_origins = sorted(s["origins"].items(), key=lambda x: x[1], reverse=True)
+        for origin, cnt in top_origins[:5]:
+            pct = cnt / s["count"] * 100
+            lines.append(f"- {origin}: {cnt}건 ({pct:.0f}%)")
+        lines.append("")
+
+    # 전체 산지 분포
+    all_origins = Counter()
+    for item in items:
+        origin = item.get("origin", "-")
+        if origin and origin != "-":
+            all_origins[origin] += 1
+
+    lines.append("### 전체 산지 분포 (TOP 15)\n")
+    lines.append("| 순위 | 산지 | 건수 | 비중 |")
+    lines.append("|------|------|------|------|")
+    for i, (origin, cnt) in enumerate(all_origins.most_common(15), 1):
+        pct = cnt / len(items) * 100
+        lines.append(f"| {i} | {origin} | {cnt:,} | {pct:.1f}% |")
+
+    return "\n".join(lines)
+
+
 def generate_report(date: str) -> str | None:
     """전체 분석 파이프라인"""
     data = load_auction_data(date)
@@ -179,6 +262,13 @@ def generate_report(date: str) -> str | None:
     total = data.get("total_collected", data.get("total_count", 0))
     print(f"분석 시작: {date} ({total:,}건)")
 
+    # 법인 수 계산
+    corps = set()
+    for m in data["markets"].values():
+        for item in m["items"]:
+            corps.add(f"{item['market_name']}|{item['corp_name']}")
+    corp_count = len(corps)
+
     # 요약 생성
     summary = summarize_data(data)
     print(f"요약 생성 완료 ({len(summary)} chars)")
@@ -187,13 +277,19 @@ def generate_report(date: str) -> str | None:
     print("Gemini 분석 중...")
     report = analyze_with_gemini(summary, date)
 
+    # 대전중앙청과 전용 섹션 추가
+    djc = _djc_report(data, date)
+    if djc:
+        report += djc
+        print("대전중앙청과㈜ 상세 섹션 추가")
+
     # 저장
     REPORT_DIR.mkdir(exist_ok=True)
     report_file = REPORT_DIR / f"report_{date}.md"
     with open(report_file, "w", encoding="utf-8") as f:
         f.write(report)
 
-    print(f"리포트 저장: {report_file}")
+    print(f"리포트 저장: {report_file} (전국 {corp_count}개 법인)")
     return report
 
 

@@ -47,14 +47,15 @@ def aggregate_by_product(data: dict) -> dict[str, dict]:
 
 
 def _filter_outliers(prices: list) -> list:
-    """이상치 제거 — 중앙값 기준 10배 초과 or 1/10 미만 제외"""
-    if len(prices) < 5:
+    """이상치 제거 — 절대 상한 + 중앙값 기준 5배 초과 or 1/5 미만 제외"""
+    prices = [p for p in prices if p <= 100_000]
+    if len(prices) < 3:
         return prices
     sorted_p = sorted(prices)
     median = sorted_p[len(sorted_p) // 2]
     if median == 0:
         return prices
-    return [p for p in prices if median / 10 <= p <= median * 10]
+    return [p for p in prices if median / 5 <= p <= median * 5]
 
 
 def compare(today_date: str, prev_date: str) -> str:

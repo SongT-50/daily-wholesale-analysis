@@ -14,11 +14,30 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 sys.stdout.reconfigure(encoding="utf-8")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 REPORT_DIR = Path(__file__).parent / "reports"
+DATA_DIR = Path(__file__).parent / "data"
 
 WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def _count_corps(date: str) -> int:
+    """데이터에서 법인 수 계산"""
+    import json
+    data_file = DATA_DIR / f"auction_{date}.json"
+    if not data_file.exists():
+        return 0
+    with open(data_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    corps = set()
+    for m in data["markets"].values():
+        for item in m["items"]:
+            corps.add(f"{item['market_name']}|{item['corp_name']}")
+    return len(corps)
 
 
 def load_report(date: str) -> str | None:
@@ -93,6 +112,9 @@ def send_report(date: str):
 
     compare = load_compare(date)
 
+    # 법인 수 계산
+    corp_count = _count_corps(date)
+
     # 요일 계산
     dt = datetime.strptime(date, "%Y-%m-%d")
     weekday = WEEKDAYS[dt.weekday()]
@@ -102,7 +124,7 @@ def send_report(date: str):
 <div style="font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; max-width: 700px; margin: 0 auto;">
     <div style="background: #1a1a2e; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
         <h1 style="margin: 0; font-size: 20px;">📊 도매시장 일일분석</h1>
-        <p style="margin: 5px 0 0; color: #aaa;">{date} ({weekday}) | 전국 주요 12개 시장</p>
+        <p style="margin: 5px 0 0; color: #aaa;">{date} ({weekday}) | 전국 {corp_count}개 법인</p>
     </div>
 
     <div style="padding: 20px; background: #f9f9f9; border: 1px solid #ddd;">
