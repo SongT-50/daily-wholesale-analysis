@@ -1,0 +1,145 @@
+"""
+전일 대비 가격 변동 분석
+두 날짜의 수집 데이터를 비교해서 품목별 변동률 산출
+
+사용: python compare.py --today 2026-03-09 --prev 2026-03-06
+"""
+
+import sys
+import json
+import argparse
+from datetime import datetime, timedelta
+from pathlib import Path
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+DATA_DIR = Path(__file__).parent / "data"
+REPORT_DIR = Path(__file__).parent / "reports"
+
+
+def load_data(date: str) -> dict | None:
+    f = DATA_DIR / f"auction_{date}.json"
+    if not f.exists():
+        return None
+    with open(f, "r", encoding="utf-8") as fp:
+        return json.load(fp)
+
+
+def aggregate_by_product(data: dict) -> dict[str, dict]:
+    """전체 데이터를 품목별로 집계"""
+    stats: dict[str, dict] = {}
+    for market in data["markets"].values():
+        for item in market["items"]:
+            product = item["product"]
+            if product not in stats:
+                stats[product] = {"prices": [], "count": 0, "total_qty": 0}
+            stats[product]["prices"].append(item["price"])
+            stats[product]["count"] += 1
+            qty = item["quantity"]
+            if isinstance(qty, (int, float)):
+                stats[product]["total_qty"] += qty
+    return stats
+
+
+def compare(today_date: str, prev_date: str) -> str:
+    """두 날짜 비교"""
+    today = load_data(today_date)
+    prev = load_data(prev_date)
+
+    if not today:
+        return f"오늘({today_date}) 데이터가 없습니다."
+    if not prev:
+        return f"전일({prev_date}) 데이터가 없습니다."
+
+    today_stats = aggregate_by_product(today)
+    prev_stats = aggregate_by_product(prev)
+
+    lines = [
+        f"# 전일 대비 가격 변동 ({prev_date} → {today_date})\n",
+        f"| 품목 | 전일 평균가 | 오늘 평균가 | 변동률 | 오늘 거래건수 |",
+        f"|------|-----------|-----------|--------|------------|",
+    ]
+
+    # 오늘 거래건수 상위 품목 기준
+    sorted_products = sorted(
+        today_stats.items(),
+        key=lambda x: x[1]["count"],
+        reverse=True,
+    )
+
+    up_count = 0
+    down_count = 0
+    stable_count = 0
+
+    for product, t_stat in sorted_products[:30]:
+        if product not in prev_stats:
+            continue
+        p_stat = prev_stats[product]
+
+        t_avg = sum(t_stat["prices"]) / len(t_stat["prices"])
+        p_avg = sum(p_stat["prices"]) / len(p_stat["prices"])
+
+        if p_avg == 0:
+            continue
+
+        change = ((t_avg - p_avg) / p_avg) * 100
+
+        if change > 1:
+            arrow = "🔺"
+            up_count += 1
+        elif change < -1:
+            arrow = "🔻"
+            down_count += 1
+        else:
+            arrow = "➖"
+            stable_count += 1
+
+        lines.append(
+            f"| {product} | {p_avg:,.0f}원 | {t_avg:,.0f}원 | "
+            f"{arrow} {change:+.1f}% | {t_stat['count']:,}건 |"
+        )
+
+    lines.append(f"\n**요약**: 상승 {up_count}개, 하락 {down_count}개, 보합 {stable_count}개")
+    lines.append(f"(거래건수 상위 30개 품목, 변동률 ±1% 이내 = 보합)")
+
+    result = "\n".join(lines)
+
+    # 저장
+    REPORT_DIR.mkdir(exist_ok=True)
+    out = REPORT_DIR / f"compare_{prev_date}_vs_{today_date}.md"
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(result)
+    print(f"비교 리포트 저장: {out}")
+
+    return result
+
+
+def find_prev_date(today_str: str) -> str | None:
+    """오늘 기준 가장 최근 이전 데이터 파일 찾기"""
+    today = datetime.strptime(today_str, "%Y-%m-%d")
+    for i in range(1, 8):
+        prev = today - timedelta(days=i)
+        prev_str = prev.strftime("%Y-%m-%d")
+        if (DATA_DIR / f"auction_{prev_str}.json").exists():
+            return prev_str
+    return None
+
+
+def main():
+    parser = argparse.ArgumentParser(description="전일 대비 가격 변동 분석")
+    parser.add_argument("--today", default=datetime.now().strftime("%Y-%m-%d"))
+    parser.add_argument("--prev", default="", help="비교 날짜 (빈값이면 자동 탐색)")
+    args = parser.parse_args()
+
+    prev = args.prev or find_prev_date(args.today)
+    if not prev:
+        print("비교할 이전 날짜 데이터가 없습니다.")
+        sys.exit(1)
+
+    print(f"비교: {prev} → {args.today}")
+    result = compare(args.today, prev)
+    print("\n" + result)
+
+
+if __name__ == "__main__":
+    main()

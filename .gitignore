@@ -1,0 +1,7 @@
+# 수집 데이터 (대용량 — GitHub에 올리지 않음)
+data/*.json
+
+# 로컬 환경
+__pycache__/
+*.pyc
+.env
