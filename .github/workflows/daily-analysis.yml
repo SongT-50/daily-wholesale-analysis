@@ -35,6 +35,14 @@ jobs:
           fi
           python run_daily.py --date "$DATE"
 
+      - name: Send email report
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          DATE=$(TZ=Asia/Seoul date +%Y-%m-%d)
+          python send_email.py --date "$DATE"
+
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
