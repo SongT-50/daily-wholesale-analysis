@@ -10,6 +10,9 @@ on:
         description: '분석 날짜 (YYYY-MM-DD)'
         required: false
 
+permissions:
+  contents: write
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -76,11 +79,19 @@ jobs:
           fi
           python send_telegram.py --date "$DATE"
 
+      - name: Clean old data (keep 7 days)
+        run: |
+          cd data/
+          # 7일 이전 파일 삭제
+          find . -name "auction_*.json" -mtime +7 -delete 2>/dev/null || true
+          echo "남은 데이터 파일:"
+          ls -la auction_*.json 2>/dev/null || echo "  (없음)"
+
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           DATE=$(TZ=Asia/Seoul date +%Y-%m-%d)
-          git add reports/
+          git add data/auction_*.json reports/
           git diff --staged --quiet || git commit -m "도매시장 일일 분석: $DATE"
           git push || echo "Push failed - will retry next run"

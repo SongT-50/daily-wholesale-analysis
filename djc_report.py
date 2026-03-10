@@ -30,12 +30,7 @@ DAEJEON_MARKETS = ["대전노은", "대전오정"]
 WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
 
 
-def load_data(date: str) -> dict | None:
-    f = DATA_DIR / f"auction_{date}.json"
-    if not f.exists():
-        return None
-    with open(f, "r", encoding="utf-8") as fp:
-        return json.load(fp)
+from data_loader import load_data
 
 
 def _filter_outliers(prices: list) -> list:
@@ -47,6 +42,43 @@ def _filter_outliers(prices: list) -> list:
     if median == 0:
         return prices
     return [p for p in prices if median / 5 <= p <= median * 5]
+
+
+def _generate_fallback_report(corp_data, date, weekday):
+    """대전중앙청과 데이터가 없을 때 대전 다른 법인 현황 리포트"""
+    lines = []
+    lines.append("# 대전중앙청과㈜ 경영 분석 리포트")
+    lines.append(f"**{date} ({weekday}) 정산 기준**\n")
+    lines.append("---")
+    lines.append("## ⚠️ 대전중앙청과㈜ 경매 데이터 없음\n")
+    lines.append("이 날짜에 대전중앙청과㈜의 경매/정산 데이터가 API에 없습니다.")
+    lines.append("(휴장, 정산 미완료, 또는 API 지연 가능)\n")
+
+    # 대전 다른 법인 현황
+    daejeon_corps = {
+        k: v for k, v in corp_data.items()
+        if any(dm in k for dm in DAEJEON_MARKETS)
+    }
+
+    if daejeon_corps:
+        total_dj = sum(v["count"] for v in daejeon_corps.values())
+        dj_sorted = sorted(daejeon_corps.items(), key=lambda x: x[1]["count"], reverse=True)
+
+        lines.append("---")
+        lines.append("## 대전 다른 법인 현황 (참고)\n")
+        lines.append("| 순위 | 시장 | 법인 | 거래건수 | 수량 | 품목수 |")
+        lines.append("|------|------|------|---------|------|--------|")
+        for i, (k, v) in enumerate(dj_sorted, 1):
+            market, corp = k.split("|")
+            lines.append(f"| {i} | {market} | {corp} | {v['count']:,} | {v['qty']:,} | {len(v['products'])} |")
+        lines.append(f"\n대전 전체 거래: **{total_dj:,}건** (대전중앙청과 제외)")
+
+    # 전국 요약
+    total_national = sum(v["count"] for v in corp_data.values())
+    lines.append(f"\n전국 전체: **{total_national:,}건** / {len(corp_data)}개 법인")
+    lines.append(f"\n*자동 생성 by 송봇 | data.go.kr 정산 데이터 기준*")
+
+    return "\n".join(lines)
 
 
 def generate_djc_report(date: str) -> str:
@@ -93,7 +125,8 @@ def generate_djc_report(date: str) -> str:
             break
 
     if not our_key:
-        return "대전중앙청과 데이터를 찾을 수 없습니다."
+        # 우리 법인 없어도 대전 다른 법인 현황은 보여주기
+        return _generate_fallback_report(corp_data, date, weekday)
 
     our = corp_data[our_key]
 
