@@ -23,14 +23,7 @@ DATA_DIR = Path(__file__).parent / "data"
 REPORT_DIR = Path(__file__).parent / "reports"
 
 
-def load_auction_data(date: str) -> dict | None:
-    """수집된 경매 데이터 로드"""
-    data_file = DATA_DIR / f"auction_{date}.json"
-    if not data_file.exists():
-        print(f"데이터 파일 없음: {data_file}")
-        return None
-    with open(data_file, "r", encoding="utf-8") as f:
-        return json.load(f)
+from data_loader import load_data as load_auction_data, load_shipment
 
 
 def _filter_outliers(prices: list[int | float]) -> list[int | float]:
@@ -102,10 +95,71 @@ def summarize_data(data: dict) -> str:
     return "\n".join(lines)
 
 
-def analyze_with_gemini(summary: str, date: str) -> str:
+def summarize_shipment(data: dict) -> str:
+    """전자송품장 출하예약 데이터 요약 텍스트 생성"""
+    from collections import defaultdict
+
+    date = data["date"]
+    total = data.get("total_collected", 0)
+    if total == 0:
+        return ""
+
+    lines = [f"\n# 전자송품장 출하예약 ({date} 출하예정)\n"]
+    lines.append(f"총 출하예약: {total:,}건\n")
+
+    # 시장별 + 품목별 집계
+    market_summary = {}
+    product_totals: dict[str, dict] = defaultdict(lambda: {"count": 0, "qty": 0})
+
+    for code, market in data["markets"].items():
+        name = market["market_name"]
+        items = market["items"]
+        if not items:
+            continue
+
+        market_summary[name] = len(items)
+
+        for item in items:
+            product = item.get("product", "")
+            if not product:
+                continue
+            qty = item.get("quantity", 0)
+            if isinstance(qty, (int, float)):
+                product_totals[product]["qty"] += qty
+            product_totals[product]["count"] += 1
+
+    # 시장별 물량
+    lines.append("## 시장별 출하예약 물량")
+    for name, count in sorted(market_summary.items(), key=lambda x: x[1], reverse=True):
+        lines.append(f"  - {name}: {count:,}건")
+
+    # 품목별 물량 (상위 15개)
+    lines.append("\n## 품목별 출하예약 (상위 15)")
+    top = sorted(product_totals.items(), key=lambda x: x[1]["count"], reverse=True)[:15]
+    for product, stats in top:
+        lines.append(f"  - {product}: {stats['count']:,}건, 수량 {stats['qty']:,}")
+
+    return "\n".join(lines)
+
+
+def analyze_with_gemini(summary: str, date: str, shipment_summary: str = "") -> str:
     """Gemini API로 분석 리포트 생성"""
     if not GEMINI_API_KEY:
         return _fallback_report(summary, date)
+
+    shipment_section = ""
+    if shipment_summary:
+        shipment_section = f"""
+
+## 전자송품장 출하예약 데이터 (내일 출하예정)
+아래는 내일 도매시장에 도착 예정인 출하예약 물량입니다.
+이 데이터를 활용해 '내일 전망' 섹션을 구체적으로 작성하세요.
+- 출하예약 물량이 많은 품목 → 가격 하락 압력
+- 출하예약 물량이 적은 품목 → 가격 상승 가능
+- 오늘 거래량 대비 내일 출하예약량 비교
+
+{shipment_summary}
+"""
 
     prompt = f"""당신은 한국 농산물 도매시장 전문 분석가입니다.
 아래 경매 데이터를 분석해서 실용적인 일일 리포트를 작성하세요.
@@ -118,6 +172,7 @@ def analyze_with_gemini(summary: str, date: str) -> str:
 - 정산일(trd_clcln_ymd): 경매 후 취소건 제외, 실제 확정된 거래 날짜
 - 단가(scsbd_prc): 낙찰 가격 (단위중량당 원)
 - 법인(corp_nm): 경매를 진행한 도매법인 (중간유통)
+- 전자송품장: 산지에서 사전 등록한 출하예약 정보 (내일 반입 예정 물량)
 
 ## 리포트 구성
 1. **오늘의 핵심 요약** (3줄 이내)
@@ -125,17 +180,18 @@ def analyze_with_gemini(summary: str, date: str) -> str:
 3. **시장별 특징** (거래량 많은 시장, 특이 동향)
 4. **도매법인 동향** (활발한 법인, 특이사항)
 5. **주목할 점** (계절 요인, 수급 변화 등)
-6. **내일 전망** (간단히)
+6. **내일 전망** (출하예약 데이터 기반, 구체적 품목별 수급 예측)
 
 ## 규칙
 - 한국어로 작성, 도매시장 업계 용어 사용
 - 숫자는 콤마 포함 (예: 15,000원/10kg)
 - 추측이면 "~로 보입니다" 표현 사용
 - 짧고 실용적으로 — 새벽에 읽을 실무자 대상
+- 출하예약 데이터가 있으면 내일 전망을 반드시 데이터 기반으로 작성
 
-## 데이터
+## 오늘 경매 데이터
 {summary}
-"""
+{shipment_section}"""
 
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
@@ -253,7 +309,7 @@ def _djc_report(data: dict, date: str) -> str:
     return "\n".join(lines)
 
 
-def generate_report(date: str) -> str | None:
+def generate_report(date: str, shipment_date: str | None = None) -> str | None:
     """전체 분석 파이프라인"""
     data = load_auction_data(date)
     if not data:
@@ -273,9 +329,19 @@ def generate_report(date: str) -> str | None:
     summary = summarize_data(data)
     print(f"요약 생성 완료 ({len(summary)} chars)")
 
+    # 출하예약 데이터 로드
+    shipment_summary = ""
+    if shipment_date:
+        shipment_data = load_shipment(shipment_date)
+        if shipment_data and shipment_data.get("total_collected", 0) > 0:
+            shipment_summary = summarize_shipment(shipment_data)
+            print(f"출하예약 요약 생성 완료 ({shipment_date}, {shipment_data['total_collected']:,}건)")
+        else:
+            print(f"출하예약 데이터 없음 ({shipment_date})")
+
     # AI 분석
     print("Gemini 분석 중...")
-    report = analyze_with_gemini(summary, date)
+    report = analyze_with_gemini(summary, date, shipment_summary)
 
     # 대전중앙청과 전용 섹션 추가
     djc = _djc_report(data, date)
