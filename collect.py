@@ -42,6 +42,7 @@ DEFAULT_MARKETS = {
 }
 
 OUTPUT_DIR = Path(__file__).parent / "data"
+ARCHIVE_DIR = Path(__file__).parent.parent.parent / "wholesale-data"
 
 PAGE_SIZE = 1000
 
@@ -123,6 +124,28 @@ def format_item(item: dict) -> dict:
     }
 
 
+# 이상치 기준: 절대상한 100,000원/kg 초과 = 입력 오류 (팔레트 단위 등)
+OUTLIER_CEILING_PER_KG = 100_000
+
+
+def is_outlier(item: dict) -> bool:
+    """수집 시점 이상치 판별 — 제거 대상이면 True"""
+    price = item.get("price", 0)
+    unit_wt = item.get("unit_weight", 0)
+
+    # 가격 0 이하
+    if price <= 0:
+        return True
+
+    # kg당 단가 환산 가능할 때 절대상한 초과
+    if unit_wt > 0:
+        per_kg = price / unit_wt
+        if per_kg > OUTLIER_CEILING_PER_KG:
+            return True
+
+    return False
+
+
 def collect(date: str, market_codes: dict[str, str]) -> dict:
     """전체 수집 실행"""
     print(f"수집 시작: {date} (정산일 기준)")
@@ -131,23 +154,28 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
     all_data = {}
     total_count = 0
     total_available = 0
+    total_outliers = 0
 
     for code, name in market_codes.items():
         print(f"\n  [{name}] 수집 중...")
         items, available = fetch_all(date, code)
         formatted = [format_item(i) for i in items]
+        outlier_count = sum(1 for i in formatted if is_outlier(i))
+        cleaned = [i for i in formatted if not is_outlier(i)]
         all_data[code] = {
             "market_name": name,
             "total_available": available,
-            "collected": len(formatted),
-            "items": formatted,
+            "collected": len(cleaned),
+            "outliers_removed": outlier_count,
+            "items": cleaned,
         }
-        total_count += len(formatted)
+        total_count += len(cleaned)
         total_available += available
-        if available > len(formatted):
-            print(f"  [{name}] {len(formatted):,}건 수집 (전체 {available:,}건)")
+        total_outliers += outlier_count
+        if outlier_count > 0:
+            print(f"  [{name}] {len(cleaned):,}건 (이상치 {outlier_count}건 제거)")
         else:
-            print(f"  [{name}] {len(formatted):,}건")
+            print(f"  [{name}] {len(cleaned):,}건")
 
     result = {
         "date": date,
@@ -155,6 +183,7 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
         "collected_at": datetime.now().isoformat(),
         "total_available": total_available,
         "total_collected": total_count,
+        "total_outliers_removed": total_outliers,
         "market_count": len(market_codes),
         "markets": all_data,
     }
@@ -164,7 +193,17 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
+    # 아카이브 저장 (월별 폴더)
+    month_dir = ARCHIVE_DIR / date[:7].replace("-", "-")
+    month_dir.mkdir(parents=True, exist_ok=True)
+    archive_file = month_dir / f"auction_{date}.json"
+    with open(archive_file, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    if total_outliers > 0:
+        print(f"\n이상치 제거: {total_outliers}건 (100,000원/kg 초과 또는 가격 0원 이하)")
     print(f"\n총 {total_count:,}건 수집 (전국 {total_available:,}건 중) → {out_file}")
+    print(f"아카이브: {archive_file}")
     return result
 
 
