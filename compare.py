@@ -16,13 +16,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 DATA_DIR = Path(__file__).parent / "data"
 REPORT_DIR = Path(__file__).parent / "reports"
 
-
-def load_data(date: str) -> dict | None:
-    f = DATA_DIR / f"auction_{date}.json"
-    if not f.exists():
-        return None
-    with open(f, "r", encoding="utf-8") as fp:
-        return json.load(fp)
+from data_loader import load_data, ARCHIVE_DIR
 
 
 def aggregate_by_product(data: dict) -> dict[str, dict]:
@@ -136,12 +130,17 @@ def compare(today_date: str, prev_date: str) -> str:
 
 
 def find_prev_date(today_str: str) -> str | None:
-    """오늘 기준 가장 최근 이전 데이터 파일 찾기"""
+    """오늘 기준 가장 최근 이전 데이터 파일 찾기 (data/ + 아카이브)"""
     today = datetime.strptime(today_str, "%Y-%m-%d")
     for i in range(1, 8):
         prev = today - timedelta(days=i)
         prev_str = prev.strftime("%Y-%m-%d")
+        # data/ 폴더
         if (DATA_DIR / f"auction_{prev_str}.json").exists():
+            return prev_str
+        # 아카이브
+        month = prev_str[:7]
+        if (ARCHIVE_DIR / month / f"auction_{prev_str}.json").exists():
             return prev_str
     return None
 
