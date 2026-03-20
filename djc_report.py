@@ -302,6 +302,25 @@ def generate_djc_report(date: str) -> str:
             f"{v['total_kg']/1000:,.1f} | {v['amount']/10000:,.0f} | {len(v['products'])} | {kg_share:.1f}% | {amount_share:.1f}% |"
         )
 
+    # 당일 대전 법인 비교
+    dj_today_sorted = sorted(daejeon_today.items(), key=lambda x: x[1]["amount"], reverse=True)
+    dj_today_date = compare_date if use_compare else date
+    lines.append(f"\n### 당일 대전 법인 비교 ({dj_today_date})\n")
+
+    lines.append("| 순위 | 시장 | 법인 | 거래건수 | 물량(톤) | 금액(만원) | 점유율(물량) | 점유율(금액) |")
+    lines.append("|------|------|------|---------|---------|----------|----------|------------|")
+    for i, (k, v) in enumerate(dj_today_sorted, 1):
+        market, corp = k.split("|")
+        kg_share = v["total_kg"] / total_dj_kg * 100 if total_dj_kg else 0
+        amount_share = v["amount"] / total_dj_amount * 100 if total_dj_amount else 0
+        marker = " ⭐" if (OUR_CORP in k and OUR_MARKET in k) else ""
+        lines.append(
+            f"| {i} | {market} | {corp}{marker} | {v['count']:,} | "
+            f"{v['total_kg']/1000:,.1f} | {v['amount']/10000:,.0f} | {kg_share:.1f}% | {amount_share:.1f}% |"
+        )
+    if use_compare:
+        lines.append(f"\n> ⚠️ 공판장 정산 지연으로 {compare_date} 데이터 기준\n")
+
     # 월간 대전 내 품목별 점유율 비교 (주요 품목 60개 — 금액 순)
     lines.append(f"\n### 대전 주요 품목별 법인 점유율 (월간 {monthly_days}일 누적, 금액 순)\n")
 
@@ -529,6 +548,125 @@ def generate_djc_report(date: str) -> str:
     return "\n".join(lines)
 
 
+DASHBOARD_URL = "https://songt-50.github.io/wholesale-dashboard/"
+
+
+def generate_telegram_summary(date: str) -> str:
+    """텔레그램용 DJC 경영 리포트 요약 (4096자 이내)"""
+    data = load_data(date)
+    if not data:
+        return f"📊 {date} DJC 경영 리포트: 데이터 없음"
+
+    dt = datetime.strptime(date, "%Y-%m-%d")
+    weekday = WEEKDAYS[dt.weekday()]
+    corp_data = _aggregate_data(data)
+
+    our_key = None
+    for k in corp_data:
+        if OUR_CORP in k and OUR_MARKET in k:
+            our_key = k
+            break
+    if not our_key:
+        return f"📊 {date}({weekday}) 대전중앙청과 데이터 없음"
+
+    our = corp_data[our_key]
+
+    # 월간 누적
+    monthly_data, monthly_days, monthly_first, monthly_last = _aggregate_monthly(date)
+    monthly_dj = {
+        k: v for k, v in monthly_data.items()
+        if any(dm in k for dm in DAEJEON_MARKETS)
+    }
+    total_m_dj_kg = sum(v["total_kg"] for v in monthly_dj.values())
+    total_m_dj_amt = sum(v["amount"] for v in monthly_dj.values())
+    dj_m_sorted = sorted(monthly_dj.items(), key=lambda x: x[1]["amount"], reverse=True)
+
+    # 당일 대전
+    compare_date, compare_data = _find_complete_date(date)
+    use_compare = compare_date != date and compare_data is not None
+    if use_compare:
+        dj_source = _aggregate_data(compare_data)
+    else:
+        dj_source = corp_data
+    dj_today = {
+        k: v for k, v in dj_source.items()
+        if any(dm in k for dm in DAEJEON_MARKETS)
+    }
+    total_dj_kg = sum(v["total_kg"] for v in dj_today.values())
+    total_dj_amt = sum(v["amount"] for v in dj_today.values())
+    dj_t_sorted = sorted(dj_today.items(), key=lambda x: x[1]["amount"], reverse=True)
+
+    # 전국 순위
+    all_ranked = sorted(corp_data.items(), key=lambda x: x[1]["amount"], reverse=True)
+    nat_rank = next((i for i, (k, _) in enumerate(all_ranked, 1) if k == our_key), 0)
+
+    msg = []
+    msg.append(f"📊 대전중앙청과㈜ 경영 분석")
+    msg.append(f"📅 {date} ({weekday}) 정산 기준\n")
+
+    # 핵심 지표
+    msg.append(f"━━ 오늘 핵심 ━━")
+    msg.append(f"거래: {our['count']:,}건 | {our['total_kg']/1000:,.1f}톤 | {our['amount']/10000:,.0f}만원")
+    msg.append(f"전국 {nat_rank}위/{len(corp_data)}법인 | 품목 {len(our['products'])}개\n")
+
+    # 월간 대전 비교
+    msg.append(f"━━ 🟠 대전 월간 ({monthly_first}~{monthly_last}, {monthly_days}일) ━━")
+    for i, (k, v) in enumerate(dj_m_sorted, 1):
+        _, corp = k.split("|")
+        kg_s = v["total_kg"] / total_m_dj_kg * 100 if total_m_dj_kg else 0
+        amt_s = v["amount"] / total_m_dj_amt * 100 if total_m_dj_amt else 0
+        star = "⭐" if (OUR_CORP in k and OUR_MARKET in k) else f"{i}위"
+        msg.append(f"  {star} {corp}: {v['total_kg']/1000:,.0f}톤({kg_s:.0f}%) {v['amount']/10000:,.0f}만원({amt_s:.0f}%)")
+    msg.append("")
+
+    # 당일 대전 비교
+    dj_date = compare_date if use_compare else date
+    msg.append(f"━━ 🔵 대전 당일 ({dj_date}) ━━")
+    for i, (k, v) in enumerate(dj_t_sorted, 1):
+        _, corp = k.split("|")
+        kg_s = v["total_kg"] / total_dj_kg * 100 if total_dj_kg else 0
+        amt_s = v["amount"] / total_dj_amt * 100 if total_dj_amt else 0
+        star = "⭐" if (OUR_CORP in k and OUR_MARKET in k) else f"{i}위"
+        msg.append(f"  {star} {corp}: {v['total_kg']/1000:,.0f}톤({kg_s:.0f}%) {v['amount']/10000:,.0f}만원({amt_s:.0f}%)")
+    msg.append("")
+
+    # 주요 품목 Top 10 (금액 순)
+    our_products = sorted(our["products"].items(), key=lambda x: x[1]["amount"], reverse=True)
+    msg.append(f"━━ 오늘 주요 품목 (금액 순) ━━")
+    for i, (product, ps) in enumerate(our_products[:10], 1):
+        msg.append(f"  {i}. {product}: {ps['total_kg']:,.0f}kg {ps['amount']/10000:,.0f}만원 ({ps['count']}건)")
+    msg.append("")
+
+    msg.append(f"📧 전체 리포트: 이메일 확인")
+    msg.append(f"🗺 대시보드: {DASHBOARD_URL}")
+    msg.append(f"\n🤖 자동 생성 by 송봇")
+
+    return "\n".join(msg)
+
+
+def send_djc_telegram(date: str):
+    """DJC 경영 리포트 요약을 텔레그램으로 발송"""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if not bot_token or not chat_id:
+        print("TELEGRAM 설정 없음 — 텔레그램 건너뜀")
+        return
+
+    import httpx
+    text = generate_telegram_summary(date)
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    resp = httpx.post(url, json={
+        "chat_id": chat_id,
+        "text": text,
+    }, timeout=15)
+
+    if resp.status_code == 200:
+        print(f"DJC 텔레그램 발송 완료")
+    else:
+        print(f"DJC 텔레그램 발송 실패: {resp.status_code} {resp.text}")
+
+
 def md_to_html(md: str) -> str:
     lines = md.split("\n")
     out = []
@@ -652,6 +790,7 @@ def main():
     parser = argparse.ArgumentParser(description="대전중앙청과 경영 분석 리포트")
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"))
     parser.add_argument("--email", action="store_true", help="이메일 발송")
+    parser.add_argument("--telegram", action="store_true", help="텔레그램 요약 발송")
     args = parser.parse_args()
 
     print(f"대전중앙청과㈜ 경영 분석 리포트 생성: {args.date}")
@@ -666,6 +805,9 @@ def main():
 
     if args.email:
         send_email(report, args.date)
+
+    if args.telegram:
+        send_djc_telegram(args.date)
 
     print("\n" + report)
 

@@ -79,6 +79,17 @@ jobs:
           fi
           python send_telegram.py --date "$DATE"
 
+      - name: Send DJC Telegram summary
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          DATE="${{ github.event.inputs.date || '' }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(TZ=Asia/Seoul date +%Y-%m-%d)
+          fi
+          python djc_report.py --date "$DATE" --telegram
+
       - name: Update dashboard data
         env:
           DASHBOARD_TOKEN: ${{ secrets.DASHBOARD_TOKEN }}
