@@ -230,8 +230,13 @@ def generate_djc_report(date: str) -> str:
 
     our = corp_data[our_key]
 
-    # ── 월간 누적 집계 (대전 비교용) ──
-    monthly_data, monthly_days, monthly_first, monthly_last = _aggregate_monthly(date)
+    # ── 공판장 포함 최신 정산일 찾기 ──
+    compare_date, compare_data = _find_complete_date(date)
+    use_compare = compare_date != date and compare_data is not None
+
+    # ── 월간 누적 집계 (공판장 포함 마지막 날짜까지만) ──
+    monthly_end = compare_date  # 공판장 포함 최신 날짜까지만 합산
+    monthly_data, monthly_days, monthly_first, monthly_last = _aggregate_monthly(monthly_end)
     monthly_label = f"{monthly_first} ~ {monthly_last} ({monthly_days}일)"
 
     monthly_dj = {
@@ -240,10 +245,6 @@ def generate_djc_report(date: str) -> str:
     }
     total_monthly_dj_kg = sum(v["total_kg"] for v in monthly_dj.values())
     total_monthly_dj_amount = sum(v["amount"] for v in monthly_dj.values())
-
-    # ── 당일 대전 (핵심 지표용 — 공판장 포함 데이터) ──
-    compare_date, compare_data = _find_complete_date(date)
-    use_compare = compare_date != date and compare_data is not None
 
     if use_compare:
         dj_source = _aggregate_data(compare_data)
@@ -571,8 +572,13 @@ def generate_telegram_summary(date: str) -> str:
 
     our = corp_data[our_key]
 
-    # 월간 누적
-    monthly_data, monthly_days, monthly_first, monthly_last = _aggregate_monthly(date)
+    # 공판장 포함 최신 정산일
+    compare_date, compare_data = _find_complete_date(date)
+    use_compare = compare_date != date and compare_data is not None
+
+    # 월간 누적 (공판장 포함 마지막까지만)
+    monthly_end = compare_date
+    monthly_data, monthly_days, monthly_first, monthly_last = _aggregate_monthly(monthly_end)
     monthly_dj = {
         k: v for k, v in monthly_data.items()
         if any(dm in k for dm in DAEJEON_MARKETS)
@@ -580,10 +586,6 @@ def generate_telegram_summary(date: str) -> str:
     total_m_dj_kg = sum(v["total_kg"] for v in monthly_dj.values())
     total_m_dj_amt = sum(v["amount"] for v in monthly_dj.values())
     dj_m_sorted = sorted(monthly_dj.items(), key=lambda x: x[1]["amount"], reverse=True)
-
-    # 당일 대전
-    compare_date, compare_data = _find_complete_date(date)
-    use_compare = compare_date != date and compare_data is not None
     if use_compare:
         dj_source = _aggregate_data(compare_data)
     else:
