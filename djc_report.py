@@ -115,25 +115,13 @@ def _find_complete_date(date: str, max_lookback: int = 3) -> tuple[str, dict]:
     return date, d
 
 
-def generate_djc_report(date: str) -> str:
-    data = load_data(date)
-    if not data:
-        return f"{date} 데이터가 없습니다."
-
-    # 공판장 포함 데이터 탐색 (대전 비교용)
-    compare_date, compare_data = _find_complete_date(date)
-    use_compare = compare_date != date and compare_data is not None
-
-    dt = datetime.strptime(date, "%Y-%m-%d")
-    weekday = WEEKDAYS[dt.weekday()]
-
-    # ── 전체 법인별 집계 ──
+def _aggregate_data(data: dict) -> dict:
+    """하루치 데이터를 법인별로 집계하여 반환."""
     corp_data = defaultdict(lambda: {
         "count": 0, "total_kg": 0, "amount": 0, "products": defaultdict(lambda: {
             "count": 0, "prices": [], "total_kg": 0, "amount": 0, "origins": Counter()
         })
     })
-
     for m in data["markets"].values():
         for item in m["items"]:
             market = item["market_name"]
@@ -143,7 +131,6 @@ def generate_djc_report(date: str) -> str:
             unit_wt = item.get("unit_weight", 0)
             price = item.get("price", 0)
             qty = item["quantity"] if isinstance(item["quantity"], (int, float)) else 0
-
             amount = price * qty
             kg = unit_wt * qty
             per_kg = amount / kg if kg > 0 else 0
@@ -159,6 +146,77 @@ def generate_djc_report(date: str) -> str:
             origin = item.get("origin", "-")
             if origin and origin != "-":
                 corp_data[key]["products"][product]["origins"][origin] += 1
+    return corp_data
+
+
+def _aggregate_monthly(date: str) -> tuple[dict, int, str, str]:
+    """해당 월의 1일부터 date까지 모든 데이터를 합산. 공판장 포함 날짜만 사용.
+
+    반환: (monthly_corp_data, loaded_days, first_date, last_date)
+    """
+    from datetime import timedelta
+
+    dt = datetime.strptime(date, "%Y-%m-%d")
+    month_start = dt.replace(day=1)
+
+    monthly = defaultdict(lambda: {
+        "count": 0, "total_kg": 0, "amount": 0, "products": defaultdict(lambda: {
+            "count": 0, "prices": [], "total_kg": 0, "amount": 0, "origins": Counter()
+        })
+    })
+
+    loaded_days = 0
+    first_loaded = None
+    last_loaded = None
+
+    current = month_start
+    while current <= dt:
+        d_str = current.strftime("%Y-%m-%d")
+        data = load_data(d_str)
+        if data:
+            loaded_days += 1
+            if not first_loaded:
+                first_loaded = d_str
+            last_loaded = d_str
+            for m in data["markets"].values():
+                for item in m["items"]:
+                    market = item["market_name"]
+                    corp = item["corp_name"]
+                    key = f"{market}|{corp}"
+                    product = item["product"]
+                    unit_wt = item.get("unit_weight", 0)
+                    price = item.get("price", 0)
+                    qty = item["quantity"] if isinstance(item["quantity"], (int, float)) else 0
+                    amount = price * qty
+                    kg = unit_wt * qty
+                    per_kg = amount / kg if kg > 0 else 0
+
+                    monthly[key]["count"] += 1
+                    monthly[key]["total_kg"] += kg
+                    monthly[key]["amount"] += amount
+                    monthly[key]["products"][product]["count"] += 1
+                    monthly[key]["products"][product]["total_kg"] += kg
+                    monthly[key]["products"][product]["amount"] += amount
+                    if per_kg > 0:
+                        monthly[key]["products"][product]["prices"].append(per_kg)
+                    origin = item.get("origin", "-")
+                    if origin and origin != "-":
+                        monthly[key]["products"][product]["origins"][origin] += 1
+        current += timedelta(days=1)
+
+    return monthly, loaded_days, first_loaded or date[:8] + "01", last_loaded or date
+
+
+def generate_djc_report(date: str) -> str:
+    data = load_data(date)
+    if not data:
+        return f"{date} 데이터가 없습니다."
+
+    dt = datetime.strptime(date, "%Y-%m-%d")
+    weekday = WEEKDAYS[dt.weekday()]
+
+    # ── 당일 전체 법인별 집계 ──
+    corp_data = _aggregate_data(data)
 
     # ── 우리 법인 찾기 ──
     our_key = None
@@ -168,56 +226,44 @@ def generate_djc_report(date: str) -> str:
             break
 
     if not our_key:
-        # 우리 법인 없어도 대전 다른 법인 현황은 보여주기
         return _generate_fallback_report(corp_data, date, weekday)
 
     our = corp_data[our_key]
 
-    # ── 대전 지역 법인들 (공판장 포함 데이터 사용) ──
+    # ── 월간 누적 집계 (대전 비교용) ──
+    monthly_data, monthly_days, monthly_first, monthly_last = _aggregate_monthly(date)
+    monthly_label = f"{monthly_first} ~ {monthly_last} ({monthly_days}일)"
+
+    monthly_dj = {
+        k: v for k, v in monthly_data.items()
+        if any(dm in k for dm in DAEJEON_MARKETS)
+    }
+    total_monthly_dj_kg = sum(v["total_kg"] for v in monthly_dj.values())
+    total_monthly_dj_amount = sum(v["amount"] for v in monthly_dj.values())
+
+    # ── 당일 대전 (핵심 지표용 — 공판장 포함 데이터) ──
+    compare_date, compare_data = _find_complete_date(date)
+    use_compare = compare_date != date and compare_data is not None
+
     if use_compare:
-        # 공판장 정산 지연으로 당일 데이터 불완전 → D-N 데이터로 대전 비교
-        compare_corp_data = defaultdict(lambda: {
-            "count": 0, "total_kg": 0, "amount": 0, "products": defaultdict(lambda: {
-                "count": 0, "prices": [], "total_kg": 0, "amount": 0, "origins": Counter()
-            })
-        })
-        for m in compare_data["markets"].values():
-            for item in m["items"]:
-                market = item["market_name"]
-                corp = item["corp_name"]
-                key = f"{market}|{corp}"
-                product = item["product"]
-                unit_wt = item.get("unit_weight", 0)
-                price = item.get("price", 0)
-                qty = item["quantity"] if isinstance(item["quantity"], (int, float)) else 0
-                amount = price * qty
-                kg = unit_wt * qty
-                per_kg = amount / kg if kg > 0 else 0
-                compare_corp_data[key]["count"] += 1
-                compare_corp_data[key]["total_kg"] += kg
-                compare_corp_data[key]["amount"] += amount
-                compare_corp_data[key]["products"][product]["count"] += 1
-                compare_corp_data[key]["products"][product]["total_kg"] += kg
-                compare_corp_data[key]["products"][product]["amount"] += amount
-                if per_kg > 0:
-                    compare_corp_data[key]["products"][product]["prices"].append(per_kg)
-        dj_source = compare_corp_data
+        dj_source = _aggregate_data(compare_data)
     else:
         dj_source = corp_data
-
-    daejeon_corps = {
+    daejeon_today = {
         k: v for k, v in dj_source.items()
         if any(dm in k for dm in DAEJEON_MARKETS)
     }
+    total_dj_kg = sum(v["total_kg"] for v in daejeon_today.values())
+    total_dj_amount = sum(v["amount"] for v in daejeon_today.values())
 
-    # ── 전국 법인 순위 ──
-    all_corps_ranked = sorted(corp_data.items(), key=lambda x: x[1]["count"], reverse=True)
+    # ── 전국 법인 순위 (금액 순) ──
+    all_corps_ranked = sorted(corp_data.items(), key=lambda x: x[1]["amount"], reverse=True)
     our_national_rank = next(
         (i for i, (k, _) in enumerate(all_corps_ranked, 1) if k == our_key), 0
     )
 
-    total_national = sum(v["count"] for v in corp_data.values())
-    total_daejeon = sum(v["count"] for v in daejeon_corps.values())
+    total_nat_kg = sum(v["total_kg"] for v in corp_data.values())
+    total_nat_amount = sum(v["amount"] for v in corp_data.values())
 
     lines = []
 
@@ -226,27 +272,85 @@ def generate_djc_report(date: str) -> str:
     # ═══════════════════════════════════════════
     lines.append(f"# 대전중앙청과㈜ 경영 분석 리포트")
     lines.append(f"**{date} ({weekday}) 정산 기준**\n")
-
-    if use_compare:
-        lines.append(f"> 🔵 = 당일({date}) 정산 데이터 | 🟠 = {compare_date} 정산 데이터 (공판장 포함)\n")
+    lines.append(f"> 🟠 = 월간 누적 ({monthly_label}, 공판장 포함) | 🔵 = 당일({date}) 정산 데이터\n")
 
     # ═══════════════════════════════════════════
-    # 1. 핵심 지표
+    # 1. 대전 지역 법인 경쟁 비교 — 월간 누적 (🟠)
     # ═══════════════════════════════════════════
     lines.append("---")
-    date_tag = f" 🔵 ({date})" if use_compare else ""
-    lines.append(f"## 1. 오늘의 핵심 지표{date_tag}\n")
+    lines.append(f"## 1. 대전 지역 법인 경쟁 비교 🟠 ({monthly_label})\n")
+    lines.append(f"> 📊 {dt.month}월 누적 데이터 (공판장 포함, {monthly_days}일 합산)\n")
 
-    total_nat_kg = sum(v["total_kg"] for v in corp_data.values())
+    dj_sorted = sorted(monthly_dj.items(), key=lambda x: x[1]["amount"], reverse=True)
+
+    lines.append("| 순위 | 시장 | 법인 | 거래건수 | 물량(톤) | 금액(만원) | 품목수 | 점유율(물량) | 점유율(금액) |")
+    lines.append("|------|------|------|---------|---------|----------|--------|----------|------------|")
+
+    our_monthly_key = None
+    for k in monthly_dj:
+        if OUR_CORP in k and OUR_MARKET in k:
+            our_monthly_key = k
+            break
+
+    for i, (k, v) in enumerate(dj_sorted, 1):
+        market, corp = k.split("|")
+        kg_share = v["total_kg"] / total_monthly_dj_kg * 100 if total_monthly_dj_kg else 0
+        amount_share = v["amount"] / total_monthly_dj_amount * 100 if total_monthly_dj_amount else 0
+        marker = " ⭐" if (OUR_CORP in k and OUR_MARKET in k) else ""
+        lines.append(
+            f"| {i} | {market} | {corp}{marker} | {v['count']:,} | "
+            f"{v['total_kg']/1000:,.1f} | {v['amount']/10000:,.0f} | {len(v['products'])} | {kg_share:.1f}% | {amount_share:.1f}% |"
+        )
+
+    # 월간 대전 내 품목별 점유율 비교 (주요 품목 60개 — 금액 순)
+    lines.append(f"\n### 대전 주요 품목별 법인 점유율 (월간 {monthly_days}일 누적, 금액 순)\n")
+
+    dj_product_total_amount = Counter()
+    dj_product_total_count = Counter()
+    dj_product_by_corp_amount = defaultdict(Counter)
+    dj_product_by_corp_count = defaultdict(Counter)
+    for k, v in monthly_dj.items():
+        _, corp = k.split("|")
+        for product, ps in v["products"].items():
+            dj_product_total_amount[product] += ps["amount"]
+            dj_product_total_count[product] += ps["count"]
+            dj_product_by_corp_amount[product][corp] += ps["amount"]
+            dj_product_by_corp_count[product][corp] += ps["count"]
+
+    top_dj_products = dj_product_total_amount.most_common(60)
+
+    # 헤더: 법인명 축약
+    corp_names = []
+    for k, _ in dj_sorted:
+        _, corp = k.split("|")
+        corp_names.append(corp)
+    lines.append("| 순위 | 품목 | 대전전체(만원) | " + " | ".join(corp_names) + " |")
+    lines.append("|------|------|------------|" + "|".join("--------|" for _ in dj_sorted))
+
+    for rank, (product, total_amt) in enumerate(top_dj_products, 1):
+        row = f"| {rank} | {product} | {total_amt/10000:,.0f} |"
+        for k, _ in dj_sorted:
+            _, corp = k.split("|")
+            amt = dj_product_by_corp_amount[product].get(corp, 0)
+            pct = amt / total_amt * 100 if total_amt else 0
+            if OUR_CORP in k and OUR_MARKET in k and amt > 0:
+                row += f" **{amt/10000:,.0f}**({pct:.0f}%) |"
+            elif amt > 0:
+                row += f" {amt/10000:,.0f}({pct:.0f}%) |"
+            else:
+                row += " - |"
+        lines.append(row)
+
+    # ═══════════════════════════════════════════
+    # 2. 핵심 지표 (🔵 당일)
+    # ═══════════════════════════════════════════
+    lines.append("\n---")
+    lines.append(f"## 2. 오늘의 핵심 지표 🔵 ({date})\n")
+
     our_share_nat_kg = our["total_kg"] / total_nat_kg * 100 if total_nat_kg else 0
-    our_amount_man = our["amount"] / 10000  # 만원 단위
-    total_nat_amount = sum(v["amount"] for v in corp_data.values())
+    our_amount_man = our["amount"] / 10000
 
-    # 대전 점유율은 공판장 포함 데이터 기준
-    total_dj_amount = sum(v["amount"] for v in daejeon_corps.values())
-    total_dj_kg = sum(v["total_kg"] for v in daejeon_corps.values())
     if use_compare:
-        # compare_data 기준 우리 법인 찾기
         our_cmp_key = None
         for k in dj_source:
             if OUR_CORP in k and OUR_MARKET in k:
@@ -259,93 +363,33 @@ def generate_djc_report(date: str) -> str:
         our_share_dj_kg = our["total_kg"] / total_dj_kg * 100 if total_dj_kg else 0
         our_amount_share_dj = our["amount"] / total_dj_amount * 100 if total_dj_amount else 0
 
+    dj_note = f" ({compare_date} 기준)" if use_compare else ""
+
     lines.append(f"| 지표 | 수치 |")
     lines.append(f"|------|------|")
-    our_ton = our["total_kg"] / 1000
     lines.append(f"| 총 거래건수 | **{our['count']:,}건** |")
-    lines.append(f"| 총 물량 | **{our_ton:,.1f}톤** ({our['total_kg']:,.0f}kg) |")
+    lines.append(f"| 총 물량 | **{our['total_kg']/1000:,.1f}톤** ({our['total_kg']:,.0f}kg) |")
     lines.append(f"| 총 거래금액 | **{our_amount_man:,.0f}만원** |")
     lines.append(f"| 취급 품목 수 | {len(our['products']):,}개 |")
-    dj_note = f" ({compare_date} 기준)" if use_compare else ""
     lines.append(f"| 대전 점유율(물량) | **{our_share_dj_kg:.1f}%** (대전 전체 {total_dj_kg/1000:,.1f}톤{dj_note}) |")
     lines.append(f"| 대전 점유율(금액) | **{our_amount_share_dj:.1f}%** (대전 전체 {total_dj_amount/10000:,.0f}만원{dj_note}) |")
-    lines.append(f"| 전국 순위 | **{our_national_rank}위** / {len(corp_data)}개 법인 |")
+    lines.append(f"| 전국 순위(금액) | **{our_national_rank}위** / {len(corp_data)}개 법인 |")
     lines.append(f"| 전국 점유율(물량) | {our_share_nat_kg:.1f}% ({total_nat_kg/1000:,.1f}톤 중) |")
 
     # ═══════════════════════════════════════════
-    # 2. 대전 지역 경쟁 비교
+    # 3. 우리 법인 품목 상세 (🔵 당일, 금액 순, 50개)
     # ═══════════════════════════════════════════
     lines.append("\n---")
-    if use_compare:
-        lines.append(f"## 2. 대전 지역 법인 경쟁 비교 🟠 ({compare_date} 기준)\n")
-        lines.append(f"> ⚠️ 공판장 정산 지연으로 {compare_date} 데이터 기준 비교\n")
-    else:
-        lines.append("## 2. 대전 지역 법인 경쟁 비교\n")
-
-    dj_sorted = sorted(daejeon_corps.items(), key=lambda x: x[1]["count"], reverse=True)
-
-    lines.append("| 순위 | 시장 | 법인 | 거래건수 | 물량(톤) | 금액(만원) | 품목수 | 점유율(물량) | 점유율(금액) |")
-    lines.append("|------|------|------|---------|---------|----------|--------|----------|------------|")
-
-    for i, (k, v) in enumerate(dj_sorted, 1):
-        market, corp = k.split("|")
-        kg_share = v["total_kg"] / total_dj_kg * 100 if total_dj_kg else 0
-        amount_share = v["amount"] / total_dj_amount * 100 if total_dj_amount else 0
-        marker = " ⭐" if k == our_key else ""
-        lines.append(
-            f"| {i} | {market} | {corp}{marker} | {v['count']:,} | "
-            f"{v['total_kg']/1000:,.1f} | {v['amount']/10000:,.0f} | {len(v['products'])} | {kg_share:.1f}% | {amount_share:.1f}% |"
-        )
-
-    # 대전 내 품목별 점유율 비교 (주요 품목)
-    lines.append("\n### 대전 주요 품목별 법인 점유율\n")
-
-    # 대전 전체 품목 집계
-    dj_product_total = Counter()
-    dj_product_by_corp = defaultdict(Counter)
-    for k, v in daejeon_corps.items():
-        _, corp = k.split("|")
-        for product, ps in v["products"].items():
-            dj_product_total[product] += ps["count"]
-            dj_product_by_corp[product][corp] += ps["count"]
-
-    top_dj_products = dj_product_total.most_common(15)
-
-    lines.append("| 품목 | 대전전체 | " + " | ".join(
-        corp.split("|")[1] if "|" in corp else corp
-        for corp, _ in dj_sorted
-    ) + " |")
-    lines.append("|------|---------|" + "|".join("--------|" for _ in dj_sorted))
-
-    for product, total_cnt in top_dj_products:
-        row = f"| {product} | {total_cnt:,} |"
-        for k, _ in dj_sorted:
-            _, corp = k.split("|")
-            cnt = dj_product_by_corp[product].get(corp, 0)
-            pct = cnt / total_cnt * 100 if total_cnt else 0
-            if k == our_key and cnt > 0:
-                row += f" **{cnt}**({pct:.0f}%) |"
-            elif cnt > 0:
-                row += f" {cnt}({pct:.0f}%) |"
-            else:
-                row += " - |"
-        lines.append(row)
-
-    # ═══════════════════════════════════════════
-    # 3. 우리 법인 품목 상세
-    # ═══════════════════════════════════════════
-    lines.append("\n---")
-    date_tag3 = f" 🔵 ({date})" if use_compare else ""
-    lines.append(f"## 3. 우리 법인 품목별 상세{date_tag3}\n")
+    lines.append(f"## 3. 우리 법인 품목별 상세 🔵 ({date})\n")
 
     our_products = sorted(
-        our["products"].items(), key=lambda x: x[1]["count"], reverse=True
+        our["products"].items(), key=lambda x: x[1]["amount"], reverse=True
     )
 
     lines.append("| 순위 | 품목 | 건수 | 물량(kg) | 금액(만원) | 평균(원/kg) | 범위 | 주요 산지 |")
     lines.append("|------|------|------|---------|----------|-----------|------|----------|")
 
-    for i, (product, ps) in enumerate(our_products[:25], 1):
+    for i, (product, ps) in enumerate(our_products[:50], 1):
         prices = _filter_outliers(ps["prices"])
         if not prices:
             avg = mn = mx = 0
@@ -365,23 +409,24 @@ def generate_djc_report(date: str) -> str:
         )
 
     # ═══════════════════════════════════════════
-    # 4. 전국 가격 경쟁력 (주요 품목)
+    # 4. 전국 가격 경쟁력 (주요 품목, 20개)
     # ═══════════════════════════════════════════
     lines.append("\n---")
-    date_tag4 = f" 🔵 ({date})" if use_compare else ""
-    lines.append(f"## 4. 전국 가격 경쟁력 비교 (주요 품목){date_tag4}\n")
+    lines.append(f"## 4. 전국 가격 경쟁력 비교 (주요 품목) 🔵 ({date})\n")
     lines.append("우리 법인 평균가 vs 전국 평균가 비교\n")
 
     lines.append("| 품목 | 우리(원/kg) | 전국평균 | 차이 | 전국 최저법인 | 전국 최고법인 |")
     lines.append("|------|-----------|---------|------|------------|------------|")
 
-    for product, ps in our_products[:15]:
+    price_count = 0
+    for product, ps in our_products:
+        if price_count >= 20:
+            break
         our_prices = _filter_outliers(ps["prices"])
         if not our_prices:
             continue
         our_avg = sum(our_prices) / len(our_prices)
 
-        # 전국 같은 품목 수집
         nat_prices_by_corp = {}
         for k, v in corp_data.items():
             if product in v["products"]:
@@ -406,13 +451,13 @@ def generate_djc_report(date: str) -> str:
             f"{arrow} {diff:+.1f}% | {lowest_corp}({nat_prices_by_corp[lowest_corp]:,.0f}) | "
             f"{highest_corp}({nat_prices_by_corp[highest_corp]:,.0f}) |"
         )
+        price_count += 1
 
     # ═══════════════════════════════════════════
-    # 5. 산지 집중도 분석
+    # 5. 산지 분포
     # ═══════════════════════════════════════════
     lines.append("\n---")
-    date_tag5 = f" 🔵 ({date})" if use_compare else ""
-    lines.append(f"## 5. 산지 분포 (전체){date_tag5}\n")
+    lines.append(f"## 5. 산지 분포 (전체) 🔵 ({date})\n")
 
     all_origins = Counter()
     for ps in our["products"].values():
@@ -425,11 +470,10 @@ def generate_djc_report(date: str) -> str:
         lines.append(f"| {i} | {origin} | {cnt:,} | {pct:.1f}% |")
 
     # ═══════════════════════════════════════════
-    # 6. 전국 순위 (근처 법인)
+    # 6. 전국 법인 순위 — 금액(만원) 순
     # ═══════════════════════════════════════════
     lines.append("\n---")
-    date_tag6 = f" 🔵 ({date})" if use_compare else ""
-    lines.append(f"## 6. 전국 법인 순위 (우리 근처){date_tag6}\n")
+    lines.append(f"## 6. 전국 법인 순위 (우리 근처, 금액 순) 🔵 ({date})\n")
 
     start = max(0, our_national_rank - 4)
     end = min(len(all_corps_ranked), our_national_rank + 4)
@@ -447,38 +491,38 @@ def generate_djc_report(date: str) -> str:
     lines.append("\n---")
     lines.append("## 7. 경영 시사점\n")
 
-    # 대전 1위 법인 대비
-    dj_top_key, dj_top = dj_sorted[0]
-    _, dj_top_corp = dj_top_key.split("|")
-    kg_gap = (dj_top["total_kg"] - our["total_kg"]) / 1000
-    amount_gap = (dj_top["amount"] - our["amount"]) / 10000
-    dj_top_kg_share = dj_top["total_kg"] / total_dj_kg * 100 if total_dj_kg else 0
-    lines.append(f"- 대전 1위 {dj_top_corp} 대비 **{kg_gap:,.1f}톤 / {amount_gap:,.0f}만원 차이** (물량 점유율 {our_share_dj_kg:.1f}% vs {dj_top_kg_share:.1f}%)")
+    # 월간 기준 대전 1위 법인 대비
+    if dj_sorted:
+        dj_top_key, dj_top = dj_sorted[0]
+        _, dj_top_corp = dj_top_key.split("|")
+        our_monthly = monthly_dj.get(our_monthly_key, {"total_kg": 0, "amount": 0})
+        our_m_kg_share = our_monthly["total_kg"] / total_monthly_dj_kg * 100 if total_monthly_dj_kg else 0
+        dj_top_kg_share = dj_top["total_kg"] / total_monthly_dj_kg * 100 if total_monthly_dj_kg else 0
+        kg_gap = (dj_top["total_kg"] - our_monthly["total_kg"]) / 1000
+        amount_gap = (dj_top["amount"] - our_monthly["amount"]) / 10000
+        lines.append(f"- 월간 대전 1위 {dj_top_corp} 대비 **{kg_gap:,.1f}톤 / {amount_gap:,.0f}만원 차이** (물량 점유율 {our_m_kg_share:.1f}% vs {dj_top_kg_share:.1f}%)")
 
-    # 우리만 취급하는 품목 / 우리가 안 취급하는 품목
-    our_products_set = set(our["products"].keys())
+    # 우리만 취급하는 품목 / 우리가 안 취급하는 품목 (월간 기준)
+    our_monthly_products = set(monthly_dj.get(our_monthly_key, {}).get("products", {}).keys()) if our_monthly_key else set()
     for k, v in dj_sorted:
-        if k == our_key:
+        if OUR_CORP in k and OUR_MARKET in k:
             continue
         _, corp = k.split("|")
         other_products = set(v["products"].keys())
-        only_them = other_products - our_products_set
+        only_them = other_products - our_monthly_products
         if only_them:
-            top_only = sorted(only_them, key=lambda p: v["products"][p]["count"], reverse=True)[:5]
-            items_str = ", ".join(f"{p}({v['products'][p]['count']}건)" for p in top_only)
+            top_only = sorted(only_them, key=lambda p: v["products"][p]["amount"], reverse=True)[:5]
+            items_str = ", ".join(f"{p}({v['products'][p]['amount']/10000:,.0f}만원)" for p in top_only)
             lines.append(f"- {corp}만 취급 (우리 미취급): {items_str}")
 
-    # 데이터 안내 섹션
+    # 데이터 안내
+    lines.append(f"\n---")
+    lines.append(f"\n### 📋 데이터 안내")
+    lines.append(f"- **당일 정산 (🔵)**: {date} 기준 ({len(corp_data)}개 법인)")
+    lines.append(f"- **월간 누적 (🟠)**: {monthly_label} ({monthly_days}일, 공판장 포함)")
     if use_compare:
-        lines.append(f"\n---")
-        lines.append(f"\n### 📋 데이터 안내")
-        lines.append(f"- **정산 데이터**: {date} 기준 (청과법인 {len(corp_data)}개사)")
-        lines.append(f"- **대전 비교 데이터**: {compare_date} 기준 (공판장 포함)")
-        lines.append(f"- **공판장 정산 지연 안내**: 농협/원협 공판장은 청과법인보다 정산 데이터 업로드가 1~2일 늦습니다.")
-        lines.append(f"  - 청과법인(예: 대전중앙청과㈜, 대전청과㈜): 당일 정산 즉시 반영")
-        lines.append(f"  - 공판장(예: 농협대전(공), 대전원협노은(공)): 1~2일 후 반영")
-        lines.append(f"  - 따라서 대전 지역 전체 비교는 공판장 데이터가 포함된 **{compare_date}** 기준을 사용합니다.")
-        lines.append(f"  - 매일 D-1, D-2 데이터를 자동 재수집하여 공판장 정산이 반영되면 즉시 업데이트됩니다.")
+        lines.append(f"- **당일 대전 점유율**: {compare_date} 기준 (공판장 포함 최신 데이터)")
+    lines.append(f"- 농협/원협 공판장은 정산 업로드가 1~2일 늦으므로, 월간 누적에는 이미 반영됩니다.")
 
     lines.append(f"\n*자동 생성 by 송봇 | data.go.kr 정산 데이터 기준*")
 
