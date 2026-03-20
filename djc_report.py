@@ -719,12 +719,25 @@ def md_to_html(md: str) -> str:
                 row_style = ""
                 raw = "|".join(cells)
                 if "⭐" in raw:
-                    row_style = " style='background:#e3f2fd;font-weight:bold;'"
-                out.append(
-                    f"<tr{row_style}>"
-                    + "".join(f"<td>{c}</td>" for c in cells)
-                    + "</tr>"
-                )
+                    row_style = (
+                        " style='background:#1565c0;color:white;font-weight:bold;"
+                        "border-left:4px solid #ff9800;'"
+                    )
+                    # 셀 안의 텍스트도 흰색으로
+                    out.append(
+                        f"<tr{row_style}>"
+                        + "".join(
+                            f"<td style='color:white;font-weight:bold;'>{c}</td>"
+                            for c in cells
+                        )
+                        + "</tr>"
+                    )
+                else:
+                    out.append(
+                        f"<tr{row_style}>"
+                        + "".join(f"<td>{c}</td>" for c in cells)
+                        + "</tr>"
+                    )
         elif line.startswith("|") and "---" in line:
             continue
         elif line.startswith("---"):
