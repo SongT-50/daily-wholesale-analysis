@@ -79,6 +79,32 @@ jobs:
           fi
           python send_telegram.py --date "$DATE"
 
+      - name: Update dashboard data
+        env:
+          DASHBOARD_TOKEN: ${{ secrets.DASHBOARD_TOKEN }}
+        run: |
+          DATE="${{ github.event.inputs.date || '' }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(TZ=Asia/Seoul date +%Y-%m-%d)
+          fi
+          if [ -z "$DASHBOARD_TOKEN" ]; then
+            echo "DASHBOARD_TOKEN 미설정 — 대시보드 업데이트 건너뜀"
+            exit 0
+          fi
+          git clone https://x-access-token:${DASHBOARD_TOKEN}@github.com/SongT-50/wholesale-dashboard.git /tmp/dashboard
+          cd /tmp/dashboard
+          AUCTION_DATA_DIR="$GITHUB_WORKSPACE/data" python preprocess.py --date "$DATE"
+          if git diff --quiet data/; then
+            echo "대시보드 데이터 변경 없음"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/
+            git commit -m "대시보드 데이터 업데이트: $DATE"
+            git push
+            echo "대시보드 데이터 업데이트 완료"
+          fi
+
       - name: Clean old data (keep 7 days)
         run: |
           cd data/
