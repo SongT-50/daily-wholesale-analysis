@@ -117,12 +117,21 @@ jobs:
             echo "대시보드 데이터 업데이트 완료"
           fi
 
-      - name: Clean old data (keep 7 days)
+      - name: Clean old data (keep current month)
         run: |
           cd data/
-          # 7일 이전 파일 삭제
-          find . -name "auction_*.json" -mtime +7 -delete 2>/dev/null || true
-          find . -name "shipment_*.json" -mtime +7 -delete 2>/dev/null || true
+          # 당월 데이터 유지, 전월 이전 삭제
+          CURRENT_MONTH=$(TZ=Asia/Seoul date +%Y-%m)
+          echo "당월: $CURRENT_MONTH — 이전 월 데이터 삭제"
+          for f in auction_*.json shipment_*.json; do
+            [ -f "$f" ] || continue
+            # 파일명에서 날짜 추출 (auction_2026-03-20.json → 2026-03)
+            FILE_MONTH=$(echo "$f" | grep -oP '\d{4}-\d{2}')
+            if [ -n "$FILE_MONTH" ] && [ "$FILE_MONTH" != "$CURRENT_MONTH" ]; then
+              echo "  삭제: $f ($FILE_MONTH)"
+              rm -f "$f"
+            fi
+          done
           echo "남은 데이터 파일:"
           ls -la *.json 2>/dev/null || echo "  (없음)"
 
