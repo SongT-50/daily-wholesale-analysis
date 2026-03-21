@@ -27,6 +27,22 @@ OUR_MARKET = "대전노은"
 
 DAEJEON_MARKETS = ["대전노은", "대전오정"]
 
+# 대전 4법인 고정 순서 (태은이 요청: 우리 법인 → 같은 시장 → 경쟁 시장)
+DAEJEON_CORP_ORDER = [
+    "대전중앙청과",   # 우리 법인 (대전노은)
+    "대전원협노은",   # 같은 시장 (대전노은)
+    "대전청과",       # 경쟁 시장 (대전오정)
+    "농협대전",       # 경쟁 시장 (대전오정)
+]
+
+def _dj_sort_key(item):
+    """대전 4법인 고정 순서 정렬 키"""
+    k = item[0]  # "시장|법인" 형태
+    for i, corp in enumerate(DAEJEON_CORP_ORDER):
+        if corp in k:
+            return i
+    return 99
+
 WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
 
 
@@ -282,7 +298,7 @@ def generate_djc_report(date: str) -> str:
     lines.append(f"## 1. 대전 지역 법인 경쟁 비교 🟠 ({monthly_label})\n")
     lines.append(f"> 📊 {dt.month}월 누적 데이터 (공판장 포함, {monthly_days}일 합산)\n")
 
-    dj_sorted = sorted(monthly_dj.items(), key=lambda x: x[1]["amount"], reverse=True)
+    dj_sorted = sorted(monthly_dj.items(), key=_dj_sort_key)
 
     lines.append("| 순위 | 시장 | 법인 | 거래건수 | 물량(톤) | 금액(만원) | 품목수 | 점유율(물량) | 점유율(금액) |")
     lines.append("|------|------|------|---------|---------|----------|--------|----------|------------|")
@@ -304,7 +320,7 @@ def generate_djc_report(date: str) -> str:
         )
 
     # 당일 대전 법인 비교
-    dj_today_sorted = sorted(daejeon_today.items(), key=lambda x: x[1]["amount"], reverse=True)
+    dj_today_sorted = sorted(daejeon_today.items(), key=_dj_sort_key)
     dj_today_date = compare_date if use_compare else date
     lines.append(f"\n### 당일 대전 법인 비교 ({dj_today_date})\n")
 
@@ -717,25 +733,9 @@ def md_to_html(md: str) -> str:
                 in_table = True
             else:
                 row_style = ""
-                raw = "|".join(cells)
-                if "⭐" in raw:
-                    row_style = (
-                        " style='background:#1565c0;color:white;font-weight:bold;"
-                        "border-left:4px solid #ff9800;'"
-                    )
-                    # 셀 안의 텍스트도 흰색으로
-                    out.append(
-                        f"<tr{row_style}>"
-                        + "".join(
-                            f"<td style='color:white;font-weight:bold;'>{c}</td>"
-                            for c in cells
-                        )
-                        + "</tr>"
-                    )
-                else:
-                    out.append(
-                        f"<tr{row_style}>"
-                        + "".join(f"<td>{c}</td>" for c in cells)
+                out.append(
+                    f"<tr{row_style}>"
+                    + "".join(f"<td>{c}</td>" for c in cells)
                         + "</tr>"
                     )
         elif line.startswith("|") and "---" in line:
