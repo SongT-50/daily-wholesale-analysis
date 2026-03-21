@@ -105,14 +105,20 @@ jobs:
           fi
           git clone https://x-access-token:${DASHBOARD_TOKEN}@github.com/SongT-50/wholesale-dashboard.git /tmp/dashboard
           cd /tmp/dashboard
-          AUCTION_DATA_DIR="$GITHUB_WORKSPACE/data" python preprocess.py --date "$DATE"
+          # 당일 + 보정 날짜(D-1, D-2) 모두 대시보드 요약 생성
+          for D in "$DATE" \
+            $(date -d "$DATE - 1 day" +%Y-%m-%d) \
+            $(date -d "$DATE - 2 days" +%Y-%m-%d); do
+            echo "대시보드 요약 생성: $D"
+            AUCTION_DATA_DIR="$GITHUB_WORKSPACE/data" python preprocess.py --date "$D" || true
+          done
           if git diff --quiet data/; then
             echo "대시보드 데이터 변경 없음"
           else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add data/
-            git commit -m "대시보드 데이터 업데이트: $DATE"
+            git commit -m "대시보드 데이터 업데이트: $DATE (D-1,D-2 보정 포함)"
             git push
             echo "대시보드 데이터 업데이트 완료"
           fi
