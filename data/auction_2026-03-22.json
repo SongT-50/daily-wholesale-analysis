@@ -1,0 +1,96 @@
+{
+  "date": "2026-03-22",
+  "data_type": "settlement",
+  "api_source": "katSale",
+  "collected_at": "2026-03-22T23:36:13.564077",
+  "total_available": 0,
+  "total_collected": 0,
+  "total_outliers_removed": 0,
+  "market_count": 12,
+  "markets": {
+    "110001": {
+      "market_name": "서울가락",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "110008": {
+      "market_name": "서울강서",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "230001": {
+      "market_name": "인천남촌",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "230003": {
+      "market_name": "인천삼산",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "250001": {
+      "market_name": "대전오정",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "250003": {
+      "market_name": "대전노은",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "220001": {
+      "market_name": "대구북부",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "210001": {
+      "market_name": "부산엄궁",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "240001": {
+      "market_name": "광주각화",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "240004": {
+      "market_name": "광주서부",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "350101": {
+      "market_name": "전주",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "380101": {
+      "market_name": "창원팔용",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    }
+  }
+}
