@@ -1,8 +1,8 @@
 {
-  "date": "2026-03-23",
+  "date": "2026-03-24",
   "data_type": "settlement",
   "api_source": "katSale",
-  "collected_at": "2026-03-24T23:38:14.591051",
+  "collected_at": "2026-03-24T23:38:34.488328",
   "total_available": 0,
   "total_collected": 0,
   "total_outliers_removed": 0,
