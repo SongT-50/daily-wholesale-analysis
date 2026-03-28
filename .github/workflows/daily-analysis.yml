@@ -39,6 +39,14 @@ jobs:
           fi
           python run_daily.py --date "$DATE"
 
+      - name: Collect shipment reservations
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+        run: |
+          TOMORROW=$(TZ=Asia/Seoul date -d 'tomorrow' +%Y-%m-%d)
+          echo "출하예약 수집: $TOMORROW"
+          python collect_shipment.py --date "$TOMORROW" || echo "출하예약 수집 실패 (API 미승인?)"
+
       - name: Generate DJC management report
         run: |
           DATE="${{ github.event.inputs.date || '' }}"
@@ -110,7 +118,7 @@ jobs:
             $(date -d "$DATE - 1 day" +%Y-%m-%d) \
             $(date -d "$DATE - 2 days" +%Y-%m-%d); do
             echo "대시보드 요약 생성: $D"
-            AUCTION_DATA_DIR="$GITHUB_WORKSPACE/data" python preprocess.py --date "$D" || true
+            AUCTION_DATA_DIR="$GITHUB_WORKSPACE/data" AUCTION_ARCHIVE_DIR="$GITHUB_WORKSPACE/data" python preprocess.py --date "$D" || true
           done
           if git diff --quiet data/; then
             echo "대시보드 데이터 변경 없음"
