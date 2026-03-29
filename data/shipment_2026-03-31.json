@@ -1,0 +1,147 @@
+{
+  "date": "2026-03-31",
+  "data_type": "shipment_reservation",
+  "collected_at": "2026-03-29T23:43:34.997861",
+  "total_available": 3,
+  "total_collected": 3,
+  "market_count": 12,
+  "markets": {
+    "110001": {
+      "market_name": "서울가락",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "110008": {
+      "market_name": "서울강서",
+      "total_available": 2,
+      "collected": 2,
+      "items": [
+        {
+          "einvc_no": "2603311100080100001",
+          "shipment_date": "2026-03-31T00:00:00Z",
+          "market_name": "서울강서",
+          "market_code": "110008",
+          "corp_name": "농협강서(공)",
+          "corp_code": "11000801",
+          "trade_type": "경매",
+          "category": "엽경채류",
+          "category_code": "10",
+          "product": "배추",
+          "product_code": "01",
+          "variety": "기타",
+          "variety_code": "99",
+          "quantity": 994,
+          "unit": "kg",
+          "unit_weight": 12.0,
+          "packaging": null,
+          "grade": "특",
+          "status": "운송준비중"
+        },
+        {
+          "einvc_no": "2603311100080100002",
+          "shipment_date": "2026-03-31T00:00:00Z",
+          "market_name": "서울강서",
+          "market_code": "110008",
+          "corp_name": "농협강서(공)",
+          "corp_code": "11000801",
+          "trade_type": "경매",
+          "category": "과실류",
+          "category_code": "06",
+          "product": "감귤",
+          "product_code": "14",
+          "variety": null,
+          "variety_code": "11",
+          "quantity": 288,
+          "unit": "kg",
+          "unit_weight": 5.0,
+          "packaging": null,
+          "grade": "특",
+          "status": "운송준비중"
+        }
+      ]
+    },
+    "230001": {
+      "market_name": "인천남촌",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "230003": {
+      "market_name": "인천삼산",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "250001": {
+      "market_name": "대전오정",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "250003": {
+      "market_name": "대전노은",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "220001": {
+      "market_name": "대구북부",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "210001": {
+      "market_name": "부산엄궁",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "240001": {
+      "market_name": "광주각화",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "240004": {
+      "market_name": "광주서부",
+      "total_available": 1,
+      "collected": 1,
+      "items": [
+        {
+          "einvc_no": "2603312400040200001",
+          "shipment_date": "2026-03-31T00:00:00Z",
+          "market_name": "광주서부",
+          "market_code": "240004",
+          "corp_name": "두레청과㈜",
+          "corp_code": "24000402",
+          "trade_type": "-",
+          "category": "조미채소류",
+          "category_code": "12",
+          "product": "양파",
+          "product_code": "01",
+          "variety": "기타",
+          "variety_code": "99",
+          "quantity": 2500,
+          "unit": "kg",
+          "unit_weight": 20.0,
+          "packaging": "파렛트",
+          "grade": "특",
+          "status": "미확정"
+        }
+      ]
+    },
+    "350101": {
+      "market_name": "전주",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    },
+    "380101": {
+      "market_name": "창원팔용",
+      "total_available": 0,
+      "collected": 0,
+      "items": []
+    }
+  }
+}
