@@ -6,7 +6,7 @@ data.go.kr 전자송품장 API → JSON 저장
 오늘 수집 시 내일(+1일) 출하예정 물량을 가져옴 → 수급 예측에 활용
 
 사용: python collect_shipment.py [--date 2026-03-20] [--markets 250003,110001]
-기본: 내일 날짜, 전국 주요 12개 시장
+기본: 내일 날짜, 전국 29개 시장 (1·2·3군 전체)
 """
 
 import sys
@@ -25,20 +25,43 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 API_BASE = "https://apis.data.go.kr/B552845/katElectronicInvoice2/shipmentReservations2"
 API_KEY = os.getenv("DATA_GO_KR_API_KEY", "")
 
-# 전국 주요 12개 시장 (collect.py와 동일)
+# 전국 32개 시장 (collect.py와 동일, 1·2·3군 전체)
 DEFAULT_MARKETS = {
+    # 제1군: 가락시장권역
     "110001": "서울가락",
+    # 제2군: 광역시 권역 (서울강서·구리 포함)
     "110008": "서울강서",
+    "210001": "부산엄궁",
+    "210009": "부산반여",
+    "220001": "대구북부",
     "230001": "인천남촌",
     "230003": "인천삼산",
-    "250001": "대전오정",
-    "250003": "대전노은",
-    "220001": "대구북부",
-    "210001": "부산엄궁",
     "240001": "광주각화",
     "240004": "광주서부",
+    "250001": "대전오정",
+    "250003": "대전노은",
+    "311201": "구리",
+    "380201": "울산",
+    # 제3군: 기타 시 권역
+    "310101": "수원",
+    "310401": "안양",
+    "310901": "안산",
+    "320101": "춘천",
+    "320201": "원주",
+    "320301": "강릉",
+    "330101": "청주",
+    "330201": "충주",
+    "340101": "천안",
     "350101": "전주",
+    "350301": "익산",
+    "350402": "정읍",
+    "360301": "순천",
+    "370101": "포항",
+    "370401": "안동",
+    "371501": "구미",
     "380101": "창원팔용",
+    "380303": "창원내서",
+    "380401": "진주",
 }
 
 OUTPUT_DIR = Path(__file__).parent / "data"
@@ -110,7 +133,8 @@ def format_item(item: dict) -> dict:
         "market_code": item.get("whsl_mrkt_cd", ""),
         "corp_name": item.get("corp_nm", ""),            # 법인
         "corp_code": item.get("corp_cd", ""),
-        "trade_type": item.get("trd_se", ""),            # 매매구분
+        "trade_type": item.get("trd_se", ""),            # 매매구분 (경매/정가 등)
+        "trade_method": item.get("trd_type", ""),        # 거래유형 (위탁 등)
         "category": item.get("gds_lclsf_nm", ""),       # 대분류
         "category_code": item.get("gds_lclsf_cd", ""),
         "product": item.get("gds_mclsf_nm", ""),        # 품목

@@ -43,9 +43,21 @@ jobs:
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
         run: |
+          TODAY=$(TZ=Asia/Seoul date +%Y-%m-%d)
           TOMORROW=$(TZ=Asia/Seoul date -d 'tomorrow' +%Y-%m-%d)
-          echo "출하예약 수집: $TOMORROW"
-          python collect_shipment.py --date "$TOMORROW" || echo "출하예약 수집 실패 (API 미승인?)"
+          echo "출하예약 수집: $TODAY (오늘) + $TOMORROW (내일)"
+          python collect_shipment.py --date "$TODAY" || echo "오늘 출하예약 수집 실패"
+          python collect_shipment.py --date "$TOMORROW" || echo "내일 출하예약 수집 실패"
+
+      - name: Daejeon shipment report (Telegram)
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          TODAY=$(TZ=Asia/Seoul date +%Y-%m-%d)
+          echo "대전 출하예약 리포트: $TODAY"
+          python report_daejeon.py --date "$TODAY" --telegram || echo "대전 리포트 실패"
 
       - name: Generate DJC management report
         run: |
