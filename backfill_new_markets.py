@@ -185,10 +185,17 @@ def main():
             with open(filepath, "r", encoding="utf-8") as f:
                 original_data = json.load(f)
 
-            result = collect(date, NEW_MARKETS)
-            new_count = result.get("total_collected", 0)
+            # collect() 호출 — 예외 시 아카이브 원본 복원 보장
+            result = None
+            try:
+                result = collect(date, NEW_MARKETS)
+            except Exception:
+                # 예외 시 collect가 아카이브를 덮어썼을 수 있으므로 원본 복원
+                with open(filepath, "w", encoding="utf-8") as f:
+                    json.dump(original_data, f, ensure_ascii=False, indent=2)
+                raise
 
-            # collect가 덮어쓴 아카이브 파일을 원본으로 복원
+            # 정상 경로: collect가 덮어쓴 아카이브를 원본으로 복원 후 병합
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(original_data, f, ensure_ascii=False, indent=2)
 
@@ -198,6 +205,7 @@ def main():
             if data_file.exists() and not date.startswith(current_month):
                 data_file.unlink()
 
+            new_count = result.get("total_collected", 0) if result else 0
 
             if new_count > 0:
                 added = merge_data(filepath, result)

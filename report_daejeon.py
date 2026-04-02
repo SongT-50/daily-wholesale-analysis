@@ -188,7 +188,7 @@ def build_telegram_message(report: str, date: str) -> str:
             msg += f"  {line}\n"
         elif line.startswith("| ") and "---" not in line and "품목" not in line:
             cells = [c.strip() for c in line.split("|") if c.strip()]
-            if len(cells) >= 4:
+            if len(cells) >= 5:
                 msg += f"  • {cells[0]}: {cells[1]} / {cells[2]} ({cells[3]}, {cells[4]})\n"
         elif line.startswith("**대전 전체**"):
             msg += f"\n{line.replace('**', '')}\n"
