@@ -34,14 +34,26 @@ NEW_MARKETS = {k: v for k, v in DEFAULT_MARKETS.items() if k not in OLD_MARKETS}
 
 
 def _check_needs_supplement(filepath: Path) -> bool:
-    """파일의 market_count가 FULL_MARKET_COUNT 미만이면 True"""
+    """파일의 market_count가 FULL_MARKET_COUNT 미만이고 보충 미완료면 True"""
     try:
         with open(filepath, "r", encoding="utf-8") as fp:
-            head = fp.read(1024)
+            # 앞부분에서 market_count 확인, 플래그는 파일 어디든 있을 수 있으므로 별도 체크
+            head = fp.read(2048)
         import re
         m = re.search(r'"market_count":\s*(\d+)', head)
         if m and int(m.group(1)) >= FULL_MARKET_COUNT:
             return False
+        # supplement_complete 플래그는 파일 끝에 있을 수 있음
+        if '"supplement_complete": true' in head or '"supplement_complete":true' in head:
+            return False
+        # 앞부분에 없으면 끝부분도 확인
+        file_size = filepath.stat().st_size
+        if file_size > 2048:
+            with open(filepath, "r", encoding="utf-8") as fp:
+                fp.seek(max(0, file_size - 512))
+                tail = fp.read()
+            if '"supplement_complete": true' in tail or '"supplement_complete":true' in tail:
+                return False
     except Exception:
         pass
     return True
@@ -74,6 +86,26 @@ def get_target_files() -> list[tuple[str, Path]]:
     # 날짜 내림차순 정렬
     targets.sort(key=lambda x: x[0], reverse=True)
     return targets
+
+
+def _mark_supplement_complete(filepath: Path):
+    """파일에 supplement_complete 플래그 추가 (재시도 방지)"""
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["supplement_complete"] = True
+        data["supplement_date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        # 아카이브에도 반영
+        date_str = data.get("date", "")
+        if date_str:
+            archive_file = ARCHIVE_DIR / date_str[:7] / filepath.name
+            if archive_file.exists() and archive_file != filepath:
+                with open(archive_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"  ⚠️ 플래그 기록 실패: {e}")
 
 
 def merge_data(existing_file: Path, new_result: dict) -> int:
@@ -211,9 +243,18 @@ def main():
                 added = merge_data(filepath, result)
                 total_added += added
                 success_count += 1
-                print(f"  → +{added}건 병합 완료")
+                if added > 0:
+                    _mark_supplement_complete(filepath)
+                    print(f"  → +{added}건 병합 완료")
+                else:
+                    # 데이터 있지만 이미 전부 병합됨 → 보충 완료 표시
+                    _mark_supplement_complete(filepath)
+                    success_count += 0  # 이미 카운트됨
+                    print(f"  → 이미 병합 완료, 보충 완료 표시")
             else:
-                print(f"  → 신규 시장 데이터 없음")
+                # API에 데이터 자체가 없음 → 보충 완료 표시
+                _mark_supplement_complete(filepath)
+                print(f"  → 신규 시장 데이터 없음, 보충 완료 표시")
 
         except RateLimitError:
             print(f"\n⚠️  API 일일 한도 초과 — 자동 중단")
