@@ -39,6 +39,19 @@ jobs:
           fi
           python run_daily.py --date "$DATE"
 
+      - name: Collect supplementary data (shipment trend, price trend, price change)
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+        run: |
+          DATE="${{ github.event.inputs.date || '' }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
+          fi
+          echo "수집기 3개 실행: $DATE"
+          python collect_shipment_trend.py --date "$DATE" || echo "출하량 추이 수집 실패"
+          python collect_price_trend.py --date "$DATE" || echo "가격 추이 수집 실패"
+          python collect_price_change.py --date "$DATE" || echo "가격 등락 수집 실패"
+
       - name: Collect shipment reservations
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
@@ -154,7 +167,7 @@ jobs:
           fi
           COLLECTED_MONTH=$(echo "$DATE" | cut -c1-7)
           echo "당월: $CURRENT_MONTH / 수집월: $COLLECTED_MONTH — 이외 삭제"
-          for f in auction_*.json shipment_*.json; do
+          for f in auction_*.json shipment_*.json shipment_trend_*.json price_trend_*.json price_change_*.json; do
             [ -f "$f" ] || continue
             FILE_MONTH=$(echo "$f" | grep -oP '\d{4}-\d{2}')
             if [ -n "$FILE_MONTH" ] && [ "$FILE_MONTH" != "$CURRENT_MONTH" ] && [ "$FILE_MONTH" != "$COLLECTED_MONTH" ]; then
@@ -170,6 +183,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
-          git add -f data/auction_*.json data/shipment_*.json reports/
+          git add -f data/auction_*.json data/shipment_*.json data/shipment_trend_*.json data/price_trend_*.json data/price_change_*.json reports/
           git diff --staged --quiet || git commit -m "도매시장 일일 분석: $DATE"
           git push || echo "Push failed - will retry next run"
