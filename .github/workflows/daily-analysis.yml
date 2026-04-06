@@ -183,6 +183,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
-          git add -f data/auction_*.json data/shipment_*.json data/shipment_trend_*.json data/price_trend_*.json data/price_change_*.json reports/
+          git add -f data/auction_*.json data/shipment_*.json reports/
+          git add -f data/shipment_trend_*.json data/price_trend_*.json data/price_change_*.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "도매시장 일일 분석: $DATE"
           git push || echo "Push failed - will retry next run"
