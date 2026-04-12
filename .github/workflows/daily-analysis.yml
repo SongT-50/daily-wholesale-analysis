@@ -32,25 +32,37 @@ jobs:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          DATE="${{ github.event.inputs.date || '' }}"
-          if [ -z "$DATE" ]; then
-            # 오전 8시 실행 → 전날 정산 데이터 수집
-            DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
+          BASE_DATE="${{ github.event.inputs.date || '' }}"
+          if [ -z "$BASE_DATE" ]; then
+            BASE_DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
           fi
-          python run_daily.py --date "$DATE"
+          # 최근 4일치 체크 (늦게 올라오는 자료 보완)
+          for i in 0 1 2 3; do
+            DATE=$(date -d "$BASE_DATE - $i days" +%Y-%m-%d)
+            if [ -f "data/auction_${DATE}.json" ]; then
+              echo "이미 존재: data/auction_${DATE}.json — skip"
+            else
+              echo "수집: $DATE"
+              python run_daily.py --date "$DATE" || echo "$DATE 수집 실패"
+            fi
+          done
 
       - name: Collect supplementary data (shipment trend, price trend, price change)
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
         run: |
-          DATE="${{ github.event.inputs.date || '' }}"
-          if [ -z "$DATE" ]; then
-            DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
+          BASE_DATE="${{ github.event.inputs.date || '' }}"
+          if [ -z "$BASE_DATE" ]; then
+            BASE_DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
           fi
-          echo "수집기 3개 실행: $DATE"
-          python collect_shipment_trend.py --date "$DATE" || echo "출하량 추이 수집 실패"
-          python collect_price_trend.py --date "$DATE" || echo "가격 추이 수집 실패"
-          python collect_price_change.py --date "$DATE" || echo "가격 등락 수집 실패"
+          # 최근 4일치 체크
+          for i in 0 1 2 3; do
+            DATE=$(date -d "$BASE_DATE - $i days" +%Y-%m-%d)
+            echo "수집기 3개 실행: $DATE"
+            [ -f "data/shipment_trend_${DATE}.json" ] || python collect_shipment_trend.py --date "$DATE" || echo "출하량 추이 수집 실패: $DATE"
+            [ -f "data/price_trend_${DATE}.json"    ] || python collect_price_trend.py    --date "$DATE" || echo "가격 추이 수집 실패: $DATE"
+            [ -f "data/price_change_${DATE}.json"   ] || python collect_price_change.py   --date "$DATE" || echo "가격 등락 수집 실패: $DATE"
+          done
 
       - name: Collect shipment reservations
         env:
@@ -138,10 +150,11 @@ jobs:
           fi
           git clone https://x-access-token:${DASHBOARD_TOKEN}@github.com/SongT-50/wholesale-dashboard.git /tmp/dashboard
           cd /tmp/dashboard
-          # 당일 + 보정 날짜(D-1, D-2) 모두 대시보드 요약 생성
+          # 당일 + 보정 날짜(D-1, D-2, D-3) 모두 대시보드 요약 생성
           for D in "$DATE" \
             $(date -d "$DATE - 1 day" +%Y-%m-%d) \
-            $(date -d "$DATE - 2 days" +%Y-%m-%d); do
+            $(date -d "$DATE - 2 days" +%Y-%m-%d) \
+            $(date -d "$DATE - 3 days" +%Y-%m-%d); do
             echo "대시보드 요약 생성: $D"
             AUCTION_DATA_DIR="$GITHUB_WORKSPACE/data" AUCTION_ARCHIVE_DIR="$GITHUB_WORKSPACE/data" python preprocess.py --date "$D" || true
           done
