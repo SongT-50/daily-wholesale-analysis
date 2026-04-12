@@ -3,7 +3,7 @@ name: Daily Wholesale Market Analysis
 on:
   schedule:
     # 매일 오전 8시(KST) = UTC 전날 23:00 (전일 정산 데이터 수집)
-    - cron: '0 23 * * 0-5'  # 일~금 UTC = 월~토 KST 오전 8시
+    - cron: '0 23 * * *'  # 매일 UTC 23:00 = KST 오전 8시 (토/일 포함)
   workflow_dispatch:  # 수동 실행 가능
     inputs:
       date:
