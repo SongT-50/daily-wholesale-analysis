@@ -2,8 +2,8 @@ name: Daily Wholesale Market Analysis
 
 on:
   schedule:
-    # 매일 오전 8시(KST) = UTC 전날 23:00 (전일 정산 데이터 수집)
-    - cron: '0 23 * * *'  # 매일 UTC 23:00 = KST 오전 8시 (토/일 포함)
+    # 매일 오전 7시(KST) = UTC 전날 22:00 (전일 정산 데이터 수집) — 2026-05-28 1시간 당김(8시→7시)
+    - cron: '0 22 * * *'  # 매일 UTC 22:00 = KST 오전 7시 (토/일 포함)
   workflow_dispatch:  # 수동 실행 가능
     inputs:
       date:
@@ -102,6 +102,17 @@ jobs:
             DATE=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)
           fi
           python send_email.py --date "$DATE"
+
+      - name: Send settlement reports (HTML attachments)
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          AUCTION_ARCHIVE_DIR: data
+          SETTLEMENT_OUT_DIR: ${{ github.workspace }}
+        run: |
+          MONTH=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m)
+          echo "정산 보고서 2종(누계+하루치) 생성 및 메일 발송: $MONTH"
+          python send_settlement_email.py --month "$MONTH" || echo "정산 보고서 메일 실패"
 
       - name: Send DJC management report email
         env:

@@ -6,14 +6,16 @@ month_report.py 양식(라이트 테마, A4 landscape) 기반. 전년 비교 없
 사용: python settlement_report.py 2026-05-01 2026-05-23
   python settlement_report.py            → 2026-05 자동 (4법인 모두 정산된 마지막 날까지)
 """
-import json, sys, html as html_mod, argparse
+import os, json, sys, html as html_mod, argparse
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime, date
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-ARCHIVE = Path("C:/Users/samsung/2026/02/wholesale-data")
+# 아카이브 경로: 로컬은 월별 하위폴더({YYYY-MM}/), 클라우드(Actions)는 레포 data/ flat 구조.
+# AUCTION_ARCHIVE_DIR 환경변수로 오버라이드 (Actions에서 data/ 지정). 기본값 = 로컬 아카이브.
+ARCHIVE = Path(os.getenv("AUCTION_ARCHIVE_DIR", "C:/Users/samsung/2026/02/wholesale-data"))
 DAEJEON_CORPS = {
     "25000301": "대전중앙청과㈜", "25000302": "대전원협노은(공)",
     "25000102": "대전청과㈜", "25000101": "농협대전(공)",
@@ -29,10 +31,15 @@ MARKET_CODES = ["250001", "250003"]
 
 
 def load_day(d: date):
-    """하루치 4법인 records 로드. 4법인 모두 데이터 있으면 True 동반 반환."""
-    f = ARCHIVE / f"{d.year}-{d.month:02d}" / f"auction_{d.isoformat()}.json"
+    """하루치 4법인 records 로드. 정산한 법인 집합 동반 반환.
+    월별 하위폴더 구조(로컬)와 flat 구조(Actions data/) 모두 탐색."""
+    candidates = [
+        ARCHIVE / f"{d.year}-{d.month:02d}" / f"auction_{d.isoformat()}.json",
+        ARCHIVE / f"auction_{d.isoformat()}.json",
+    ]
+    f = next((c for c in candidates if c.exists()), None)
     records = []
-    if not f.exists():
+    if f is None:
         return records, set()
     with open(f, "r", encoding="utf-8") as fh:
         data = json.load(fh)
@@ -106,6 +113,49 @@ def fmt_manwon(won): return f"{won / 10000:,.0f}"
 def fmt_pct(v): return f"{v:.1f}%"
 def fmt_num(n): return f"{n:,}"
 def corp_sum(agg, field): return sum(agg.get(c, {field: 0})[field] for c in CORP_ORDER)
+
+
+def validate_data(range_agg, product_data, last_day, range_records):
+    """데이터 정합성 검증. 문제 발견 시 경고 문자열 리스트 반환 (빈 리스트 = 통과).
+    검증 항목: ①마지막 정산일 4법인 완비 ②기간 데이터 존재 ③품목합=법인합(물량·금액)."""
+    warnings = []
+
+    # ① 마지막 정산일 4법인 완비 여부
+    _, present = load_day(last_day)
+    if len(present) < 4:
+        missing = [CORP_SHORT[c] for c in CORP_ORDER if c not in present]
+        warnings.append(f"마지막 정산일({last_day.isoformat()}) 4법인 미완비 — 미정산: {', '.join(missing)}")
+
+    # ② 기간 내 데이터 존재
+    if not range_records:
+        warnings.append("기간 내 정산 데이터 0건 — 데이터 누락 의심")
+        return warnings
+
+    # ③ 품목별 합산 = 법인별 합산 (독립 재집계 교차검증)
+    sorted_products, _ = product_data
+    prod_qty = sum(t["qty_kg"] for _, t in sorted_products)
+    prod_amt = sum(t["amount"] for _, t in sorted_products)
+    corp_qty = corp_sum(range_agg, "qty_kg")
+    corp_amt = corp_sum(range_agg, "amount")
+    if abs(prod_qty - corp_qty) > 1:  # kg 반올림 오차 허용
+        warnings.append(f"물량 집계 불일치 — 품목합 {prod_qty/1000:,.1f}톤 ≠ 법인합 {corp_qty/1000:,.1f}톤")
+    if abs(prod_amt - corp_amt) > 1:
+        warnings.append(f"금액 집계 불일치 — 품목합 {prod_amt/10000:,.0f}만원 ≠ 법인합 {corp_amt/10000:,.0f}만원")
+
+    return warnings
+
+
+def validation_box(warnings):
+    """검증 결과 HTML 박스 (경고 있으면 빨강, 없으면 초록)."""
+    if warnings:
+        items = "".join(f"<li>{html_mod.escape(w)}</li>" for w in warnings)
+        return (f'<div style="background:#fff3f3;border:1.5px solid #d32f2f;border-radius:6px;'
+                f'padding:10px 14px;margin:10px 0;color:#b71c1c;font-size:10.5pt;">'
+                f'<strong>⚠️ 데이터 검증 경고 {len(warnings)}건</strong> (받아보고 확인 요망)'
+                f'<ul style="margin:6px 0 0 18px;">{items}</ul></div>')
+    return ('<div style="background:#f1f8f1;border:1.5px solid #2e7d32;border-radius:6px;'
+            'padding:8px 14px;margin:10px 0;color:#1b5e20;font-size:10.5pt;">'
+            '✅ 데이터 검증 통과 — 4법인 완비 · 품목합=법인합 (물량·금액 정합)</div>')
 
 
 def corp_detail_table(agg, title):
@@ -228,20 +278,30 @@ tr.total-row { background:#f0f0f0; border-top:2px solid #888; }
 </style>"""
 
 
-def generate_html(start, end, last_day, range_agg, day_agg, product_data, days):
+def generate_html(start, end, last_day, range_agg, day_agg, product_data, days, daily=False, warnings=None):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    title = f"{start.year}년 {start.month}월 대전 도매시장 정산 보고서"
     period = f"{start.year}.{start.month:02d}.{start.day:02d} ~ {end.year}.{end.month:02d}.{end.day:02d}"
     last_label = f"{last_day.month}월 {last_day.day}일({'월화수목금토일'[last_day.weekday()]})"
 
-    page = f"""<!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8">
-<title>{title}</title>{CSS}</head><body>
+    if daily:
+        # 하루치 단독본: 누계 = 당일이라 누계 섹션 생략, 전부 당일 기준
+        title = f"{last_day.year}년 {last_label} 대전 도매시장 정산 보고서"
+        subtitle = (f"정산일: {last_label} (하루치 단독) | 생성: {now}<br>"
+                    "출처: 농산물유통정보(aT) 정산정보 API | 4법인: 대전중앙청과·원협노은·대전청과·농협대전")
+        body = f"""
+<h2>1. {last_label} 4법인 정산 현황</h2>
+{corp_detail_table(day_agg, f"{last_label} 4법인 정산")}
+{two_corp_table(day_agg, "중앙청과 vs 원협노은 (대전노은 시장)")}
+{market_table(day_agg)}
 
-<h1>{title}</h1>
-<p class="subtitle">기간: {period} (정산 완료일 기준) | 영업 {days}일 | 생성: {now}<br>
-출처: 농산물유통정보(aT) 정산정보 API | 4법인: 대전중앙청과·원협노은·대전청과·농협대전</p>
-<p class="note" style="text-align:center;color:#d32f2f;">
+<div class="page-break"></div>
+<h2>2. 품목별 정산 현황 ({last_label}, 전 품목)</h2>
+{product_table(*product_data)}"""
+    else:
+        title = f"{start.year}년 {start.month}월 대전 도매시장 정산 보고서"
+        subtitle = (f"기간: {period} (정산 완료일 기준) | 영업 {days}일 | 생성: {now}<br>"
+                    "출처: 농산물유통정보(aT) 정산정보 API | 4법인: 대전중앙청과·원협노은·대전청과·농협대전")
+        body = f"""<p class="note" style="text-align:center;color:#d32f2f;">
 ※ 공판장(원협노은·농협대전) 정산 2~3일 지연 → 4법인 모두 정산 완료된 마지막 날({last_label})까지 집계</p>
 
 <h2>1. 마지막 정산일 ({last_label}) 현황</h2>
@@ -254,7 +314,16 @@ def generate_html(start, end, last_day, range_agg, day_agg, product_data, days):
 
 <div class="page-break"></div>
 <h2>3. 품목별 정산 현황 ({start.month}월 누계, 전 품목)</h2>
-{product_table(*product_data)}
+{product_table(*product_data)}"""
+
+    page = f"""<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<title>{title}</title>{CSS}</head><body>
+
+<h1>{title}</h1>
+<p class="subtitle">{subtitle}</p>
+{validation_box(warnings or [])}
+{body}
 
 <div class="footer">
     대전중앙청과 경영기획 | 출처: 농산물유통정보(aT) 정산정보 API | 공판장 정산 2~3일 지연 가능
@@ -263,43 +332,72 @@ def generate_html(start, end, last_day, range_agg, day_agg, product_data, days):
     return page
 
 
-def main():
-    parser = argparse.ArgumentParser(description="대전 도매시장 정산 보고서 (기간 + 마지막날 + 전품목)")
-    parser.add_argument("start", nargs="?", default="2026-05-01")
-    parser.add_argument("end", nargs="?", default=None, help="미지정 시 4법인 모두 정산된 마지막 날 자동 탐색")
-    args = parser.parse_args()
+BASE_OUT = Path(os.getenv("SETTLEMENT_OUT_DIR", "C:/Users/samsung/2026/02/monet/daily-wholesale-analysis"))
 
-    start = date.fromisoformat(args.start)
-    # end 미지정 시: 해당 월 말일까지 탐색 범위로 두고 마지막 정산일 자동 검색
-    if args.end:
-        end = date.fromisoformat(args.end)
-    else:
-        # 같은 달 25일 정도까지 탐색 후 마지막 정산일
-        probe_end = date(start.year, start.month, 28)
-        end = find_last_settled_day(start, probe_end)
 
+def _resolve_out(out_arg, default_name):
+    if out_arg:
+        return Path(out_arg) if Path(out_arg).is_absolute() else BASE_OUT / out_arg
+    return BASE_OUT / default_name
+
+
+def build_report(start: date, end: date, out_arg=None):
+    """[start, end] 정산 보고서 1개 생성. stats dict 반환 (메일 본문 요약용)."""
     last_day = find_last_settled_day(start, end)
-
-    print("=" * 60)
-    print(f"  {start.isoformat()} ~ {end.isoformat()} 정산 보고서")
-    print(f"  마지막 정산일(4법인 완비): {last_day.isoformat()}")
-    print("=" * 60)
-
+    daily = (start == end)
     range_records, days = load_range(start, end)
     range_agg = aggregate(range_records)
     day_records, _ = load_day(last_day)
     day_agg = aggregate(day_records)
-    product_data = aggregate_by_product(range_records)
+    product_data = aggregate_by_product(day_records if daily else range_records)
+    warnings = validate_data(range_agg, product_data, last_day, range_records)
 
-    rq = corp_sum(range_agg, "qty_kg"); ra = corp_sum(range_agg, "amount")
-    print(f"\n누계: {days}일, {len(range_records):,}건, {rq/1000:,.1f}톤, {ra/10000:,.0f}만원")
-    print(f"품목: {len(product_data[0])}개")
-    print(f"마지막날({last_day}): {corp_sum(day_agg,'qty_kg')/1000:,.1f}톤, {corp_sum(day_agg,'amount')/10000:,.0f}만원")
-
-    html_content = generate_html(start, end, last_day, range_agg, day_agg, product_data, days)
-    out = Path(f"C:/Users/samsung/2026/02/monet/daily-wholesale-analysis/settlement_report_{start.year}-{start.month:02d}.html")
+    html_content = generate_html(start, end, last_day, range_agg, day_agg,
+                                 product_data, days, daily=daily, warnings=warnings)
+    default_name = (f"settlement_report_{last_day.isoformat()}_daily.html" if daily
+                    else f"settlement_report_{start.year}-{start.month:02d}.html")
+    out = _resolve_out(out_arg, default_name)
     out.write_text(html_content, encoding="utf-8")
-    print(f"\n{out}")
+
+    rq, ra = corp_sum(range_agg, "qty_kg"), corp_sum(range_agg, "amount")
+    stats = {"kind": "하루치" if daily else "누계", "daily": daily,
+             "start": start, "end": end, "last_day": last_day, "days": days,
+             "records": len(range_records), "qty_kg": rq, "amount": ra,
+             "products": len(product_data[0]), "warnings": warnings, "path": out}
+    print(f"[{stats['kind']}] {start.isoformat()}~{end.isoformat()} | 마지막정산일 {last_day.isoformat()} | "
+          f"{days}일 {len(range_records):,}건 {rq/1000:,.1f}톤 {ra/10000:,.0f}만원 | "
+          f"품목 {len(product_data[0])} | 검증경고 {len(warnings)}건")
+    for w in warnings:
+        print(f"   ⚠️ {w}")
+    print(f"   -> {out}")
+    return stats
+
+
+def main():
+    import calendar
+    parser = argparse.ArgumentParser(description="대전 도매시장 정산 보고서 (기간 + 마지막날 + 전품목)")
+    parser.add_argument("start", nargs="?", default="2026-05-01")
+    parser.add_argument("end", nargs="?", default=None, help="미지정 시 4법인 모두 정산된 마지막 날 자동 탐색")
+    parser.add_argument("--out", default=None, help="출력 파일명(미지정 시 settlement_report_YYYY-MM.html)")
+    parser.add_argument("--also-daily", action="store_true",
+                        help="누계본 생성 후 마지막 정산일 하루치본도 함께 생성")
+    args = parser.parse_args()
+
+    start = date.fromisoformat(args.start)
+    if args.end:
+        end = date.fromisoformat(args.end)
+    else:
+        # 해당 월 말일까지 탐색 → 4법인 완비된 마지막 정산일 자동 검색
+        last_dom = calendar.monthrange(start.year, start.month)[1]
+        end = find_last_settled_day(start, date(start.year, start.month, last_dom))
+
+    print("=" * 60)
+    stats = build_report(start, end, args.out)
+
+    if args.also_daily and start != end:
+        # 마지막 정산일 하루치 단독본 (--out 미적용, 기본 파일명 사용)
+        build_report(stats["last_day"], stats["last_day"], None)
+    print("=" * 60)
 
 
 if __name__ == "__main__":
