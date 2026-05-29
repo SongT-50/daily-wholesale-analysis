@@ -58,17 +58,30 @@ AUCTION_BLOCKS = [
     ("10", frozenset({"숙주나물", "우엉대", "콩나물", "토란대"}), None),      # 오준서 경매사
     ("11", frozenset({"연근", "우엉", "토란"}), None),
     ("12", frozenset({"마늘", "생강"}), None),
-    ("16", None, None),                                                       # 담당자 없음
-    ("04", frozenset({"기장"}), None),
+    ("04", frozenset({"기장"}), None),                                       # 담당자 없음(잔여)
     ("91", None, None),
-    # ── 과일 파트 (물량순) ──
-    ("06", None, None),
-    ("07", None, None),
-    ("08", None, None),
+    # ═══ 과일 파트 (04:30~) ═══
+    ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None),  # 04:30 이기송 경매사
+    ("07", frozenset({"대추", "밤", "잣"}), None),
+    ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None),
+    ("06", frozenset({"곶감", "단감", "포도"}), None),                        # 김상걸 이사
+    ("08", frozenset({"참외"}), None),
+    ("06", frozenset({"감귤", "만감"}), None),                               # 윤정기 이사
+    ("08", frozenset({"수박"}), None),
+    ("06", frozenset({"배", "사과"}), None),                                 # 이광진 부장
+    # 안대명 부장 (수입과일)
+    ("06", frozenset({"듀리안", "레몬", "망고", "망고스턴", "바나나", "아로니아",
+                      "아보카도", "오렌지", "용과", "자몽", "참다래(키위)", "체리",
+                      "코코넛", "탄제린", "파인애플"}), None),
+    ("07", frozenset({"다래"}), None),
+    # ── 나머지 (땅콩·수삼·약용) ──
+    ("16", None, None),
     ("18", None, None),
     ("19", None, None),
 ]
 _AUCTION_FALLBACK = len(AUCTION_BLOCKS) + 1
+# 과일 파트 시작 블록 인덱스 (채소엔 부류 06 없음 → 첫 06 블록이 과일 파트 시작점).
+FRUIT_START_BLOCK = next(i for i, (cc, _, _) in enumerate(AUCTION_BLOCKS) if cc == "06")
 
 
 def auction_block_index(product, category_code):
@@ -325,8 +338,14 @@ def product_table(sorted_products, product_corp, product_cat):
     (태은이 5/29 요청: 두 법인 실수치 + 두 법인 비율 + 4법인 물량 비율)"""
     J, W, DJ, NH = "25000301", "25000302", "25000102", "25000101"
     rows = ""
+    prev_part = None
     for product, totals in sorted_products:
         cc, _ = product_cat.get(product, ("", ""))
+        part = "fruit" if auction_block_index(product, cc) >= FRUIT_START_BLOCK else "veg"
+        if part != prev_part:
+            label = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
+            rows += f'<tr class="part-divider"><td colspan="12">{label}</td></tr>'
+            prev_part = part
         tq = totals["qty_kg"]
         j = product_corp[product][J]; w = product_corp[product][W]
         dj = product_corp[product][DJ]; nh = product_corp[product][NH]
@@ -387,6 +406,8 @@ td.cat { text-align:center; color:#777; font-variant-numeric:tabular-nums; }
 th.won-h { background:#e8f5e9; color:#1b5e20; }
 td.won { background:#f4faf4; }
 td.rt { text-align:center; font-weight:600; color:#444; font-variant-numeric:tabular-nums; }
+tr.part-divider td { background:#1565c0; color:#fff; font-weight:700; font-size:11pt;
+                     text-align:center; padding:7px; letter-spacing:1px; }
 .note { font-size:9pt; color:#777; margin-top:4px; }
 .footer { margin-top:24px; padding-top:8px; border-top:1px solid #ddd;
           font-size:9pt; color:#999; text-align:center; }
