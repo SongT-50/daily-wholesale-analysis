@@ -29,6 +29,28 @@ NOEUN_CORPS = ["25000301", "25000302"]
 OJEONG_CORPS = ["25000102", "25000101"]
 MARKET_CODES = ["250001", "250003"]
 
+# 품목별 표 커스텀 표시 순서 (태은이 5/29 결재 — 경매사 실무 편의용).
+# 부류번호·데이터는 그대로 유지하고 "표시 순서"만 재배치한다.
+# 부류 단위 이동 + 개별 품목(당근·양파·땅콩) 빼내기.
+#   06 07 08 → 땅콩(16) → 18 19 → 09 10 11(당근제외) → 05 → 당근 → 양파
+#   → 12(양파제외) 13 14 → 16(땅콩제외:기타·차류·참깨) → 17 → 03 04 → 91
+# 새 부류코드가 등장하면 목록에 없어 맨 뒤로 정렬(_DISP_FALLBACK).
+DISPLAY_ORDER = ["06", "07", "08", "__땅콩__", "18", "19", "09", "10", "11", "05",
+                 "__당근__", "__양파__", "12", "13", "14", "16", "17", "03", "04", "91"]
+_DISP_FALLBACK = len(DISPLAY_ORDER) + 1
+# 개별로 빼내 옮기는 품목: (품목명, 원래부류코드) -> 표시 위치 토큰.
+# 땅콩만 08 뒤(__땅콩__)로 빼고, 부류16 나머지(기타·차류·참깨)는 "16" 위치(14 뒤)로.
+MOVED_ITEMS = {("당근", "11"): "__당근__", ("양파", "12"): "__양파__", ("땅콩", "16"): "__땅콩__"}
+
+
+def display_sort_key(product, category_code):
+    """커스텀 표시 순서 정렬 키. (블록 인덱스, 품목명). 부류 내부는 품목명 가나다순."""
+    token = MOVED_ITEMS.get((product, category_code))
+    if token:
+        return (DISPLAY_ORDER.index(token), product)
+    idx = DISPLAY_ORDER.index(category_code) if category_code in DISPLAY_ORDER else _DISP_FALLBACK
+    return (idx, product)
+
 
 def load_day(d: date):
     """하루치 4법인 records 로드. 정산한 법인 집합 동반 반환.
@@ -108,21 +130,33 @@ def aggregate(records):
 
 
 def aggregate_by_product(records):
-    """전 품목 (제한 없음). 물량 기준 내림차순."""
+    """전 품목 (제한 없음). 부류코드(2자리) 오름차순 → 품목명 가나다순 정렬.
+    정산자료엔 부류코드(category_code)만 있고 품목 4자리 코드는 없음 → 부류코드순으로 우선 정렬.
+    품목별 4법인 물량·금액을 모두 보관(중앙청과·원협노은 실수치 표기에 사용)."""
     product_total = defaultdict(lambda: {"qty_kg": 0, "amount": 0})
     product_corp = defaultdict(lambda: defaultdict(lambda: {"qty_kg": 0, "amount": 0}))
+    product_cat = {}  # product -> (category_code, category_name) 첫 등장 부류 유지
     for r in records:
         code = r.get("corp_code")
         if code not in DAEJEON_CORPS:
             continue
         product = r.get("product", "기타") or "기타"
+        cc = (r.get("category_code") or "").strip()
+        cn = (r.get("category") or "").strip()
+        if product not in product_cat:
+            product_cat[product] = (cc, cn)
         qty = r.get("total_qty", 0) or 0
         amt = r.get("total_amount", 0) or 0
         product_total[product]["qty_kg"] += qty
         product_total[product]["amount"] += amt
         product_corp[product][code]["qty_kg"] += qty
         product_corp[product][code]["amount"] += amt
-    return sorted(product_total.items(), key=lambda x: x[1]["qty_kg"], reverse=True), product_corp
+    # 커스텀 표시 순서(DISPLAY_ORDER) + 당근·양파 개별 이동. 부류 내부는 품목명 가나다순.
+    sorted_products = sorted(
+        product_total.items(),
+        key=lambda x: display_sort_key(x[0], product_cat[x[0]][0]),
+    )
+    return sorted_products, product_corp, product_cat
 
 
 # === 포맷 ===
@@ -131,6 +165,17 @@ def fmt_manwon(won): return f"{won / 10000:,.0f}"
 def fmt_pct(v): return f"{v:.1f}%"
 def fmt_num(n): return f"{n:,}"
 def corp_sum(agg, field): return sum(agg.get(c, {field: 0})[field] for c in CORP_ORDER)
+
+
+def ratio_pct(a, b):
+    """대전노은 두 법인(중앙청과:원협노은) 비중을 합 100 기준 정수쌍으로. 예: 55:45.
+    둘 다 0이면 '-'. 반올림 오차는 큰 쪽에 흡수시켜 합이 항상 100이 되게 한다."""
+    t = (a or 0) + (b or 0)
+    if t <= 0:
+        return "-"
+    pa = round(a / t * 100)
+    pb = 100 - pa
+    return f"{pa}:{pb}"
 
 
 def validate_data(range_agg, product_data, last_day, range_records):
@@ -150,7 +195,7 @@ def validate_data(range_agg, product_data, last_day, range_records):
         return warnings
 
     # ③ 품목별 합산 = 법인별 합산 (독립 재집계 교차검증)
-    sorted_products, _ = product_data
+    sorted_products = product_data[0]
     prod_qty = sum(t["qty_kg"] for _, t in sorted_products)
     prod_amt = sum(t["amount"] for _, t in sorted_products)
     corp_qty = corp_sum(range_agg, "qty_kg")
@@ -207,23 +252,22 @@ def two_corp_table(agg, title):
     c2 = agg.get("25000302", {"qty_kg": 0, "amount": 0})
     tq = (c1["qty_kg"] + c2["qty_kg"]) or 1
     ta = (c1["amount"] + c2["amount"]) or 1
-    def ratio(a, b): return f"{a/b:.2f} : 1" if b else "-"
     return f"""<h3>{title}</h3>
     <table><thead><tr>
         <th>항목</th><th class="hl">중앙청과</th><th>원협노은</th><th>비율(중앙:원협)</th>
     </tr></thead><tbody>
         <tr><td>물량(톤)</td><td class="num hl">{fmt_ton(c1['qty_kg'])}</td>
             <td class="num">{fmt_ton(c2['qty_kg'])}</td>
-            <td class="num">{ratio(c1['qty_kg'],c2['qty_kg'])}</td></tr>
+            <td class="num rt">{ratio_pct(c1['qty_kg'],c2['qty_kg'])}</td></tr>
         <tr><td>금액(만원)</td><td class="num hl">{fmt_manwon(c1['amount'])}</td>
             <td class="num">{fmt_manwon(c2['amount'])}</td>
-            <td class="num">{ratio(c1['amount'],c2['amount'])}</td></tr>
+            <td class="num rt">{ratio_pct(c1['amount'],c2['amount'])}</td></tr>
         <tr><td>점유율(물량)</td><td class="num hl">{fmt_pct(c1['qty_kg']/tq*100)}</td>
             <td class="num">{fmt_pct(c2['qty_kg']/tq*100)}</td><td class="num">-</td></tr>
         <tr><td>점유율(금액)</td><td class="num hl">{fmt_pct(c1['amount']/ta*100)}</td>
             <td class="num">{fmt_pct(c2['amount']/ta*100)}</td><td class="num">-</td></tr>
     </tbody></table>
-    <p class="note">※ 대전노은 시장 내 두 법인 직접 비교 (중앙청과 강조)</p>"""
+    <p class="note">※ 대전노은 시장 내 두 법인 직접 비교 (중앙청과 강조). 비율 = 두 법인 합 100 기준(예 55:45)</p>"""
 
 
 def market_table(agg):
@@ -243,28 +287,44 @@ def market_table(agg):
         <th>점유율(물량)</th><th>점유율(금액)</th></tr></thead><tbody>{rows}</tbody></table>"""
 
 
-def product_table(sorted_products, product_corp):
+def product_table(sorted_products, product_corp, product_cat):
+    """품목별 표 (부류코드순). 중앙청과·원협노은은 물량(톤)·금액(만원) 실수치 +
+    중앙:원협 비율(물량·금액, 55:45 형태). 4법인 전체는 물량 점유율(%)로 표기.
+    (태은이 5/29 요청: 두 법인 실수치 + 두 법인 비율 + 4법인 물량 비율)"""
+    J, W, DJ, NH = "25000301", "25000302", "25000102", "25000101"
     rows = ""
     for product, totals in sorted_products:
-        total_qty = totals["qty_kg"]
-        total_amt = totals["amount"]
-        corp_cells = ""
-        for code in CORP_ORDER:
-            cd = product_corp[product][code]
-            pct = (cd["qty_kg"] / total_qty * 100) if total_qty else 0
-            hl = ' hl' if code == "25000301" else ""
-            bold = " font-weight:600;" if pct >= 40 else ""
-            corp_cells += f'<td class="num{hl}" style="{bold}">{fmt_pct(pct)}</td>'
+        cc, _ = product_cat.get(product, ("", ""))
+        tq = totals["qty_kg"]
+        j = product_corp[product][J]; w = product_corp[product][W]
+        dj = product_corp[product][DJ]; nh = product_corp[product][NH]
+        def pq(d): return (d["qty_kg"] / tq * 100) if tq else 0
         rows += f"""<tr>
+            <td class="cat">{html_mod.escape(cc)}</td>
             <td>{html_mod.escape(product)}</td>
-            <td class="num">{fmt_ton(total_qty)}</td><td class="num">{fmt_manwon(total_amt)}</td>
-            {corp_cells}</tr>"""
-    return f"""<h3>품목별 법인 점유율 (전 품목, 물량 내림차순 · 총 {len(sorted_products)}개)</h3>
-    <table class="product-table"><thead><tr>
-        <th>품목</th><th>물량(톤)</th><th>금액(만원)</th>
-        <th class="hl">중앙청과</th><th>원협노은</th><th>대전청과</th><th>농협대전</th>
+            <td class="num hl">{fmt_ton(j['qty_kg'])}</td><td class="num hl">{fmt_manwon(j['amount'])}</td>
+            <td class="num won">{fmt_ton(w['qty_kg'])}</td><td class="num won">{fmt_manwon(w['amount'])}</td>
+            <td class="num rt">{ratio_pct(j['qty_kg'], w['qty_kg'])}</td>
+            <td class="num rt">{ratio_pct(j['amount'], w['amount'])}</td>
+            <td class="num hl">{fmt_pct(pq(j))}</td><td class="num won">{fmt_pct(pq(w))}</td>
+            <td class="num">{fmt_pct(pq(dj))}</td><td class="num">{fmt_pct(pq(nh))}</td></tr>"""
+    return f"""<h3>품목별 정산 (부류코드순 · 전 품목 {len(sorted_products)}개) — 중앙청과·원협노은 강조</h3>
+    <table class="product-table"><thead>
+    <tr>
+        <th rowspan="2">부류</th><th rowspan="2">품목</th>
+        <th colspan="2" class="hl">중앙청과 ★</th>
+        <th colspan="2" class="won-h">원협노은</th>
+        <th colspan="2">중앙:원협 비율</th>
+        <th colspan="4">물량 점유율 (4법인)</th>
+    </tr>
+    <tr>
+        <th class="hl">물량(톤)</th><th class="hl">금액(만원)</th>
+        <th class="won-h">물량(톤)</th><th class="won-h">금액(만원)</th>
+        <th>물량</th><th>금액</th>
+        <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
     </tr></thead><tbody>{rows}</tbody></table>
-    <p class="note">※ 점유율 = 대전 4법인 물량 합계 대비. 40% 이상 굵게. 4법인 중 하나라도 정산한 모든 품목 나열.</p>"""
+    <p class="note">※ 부류코드(2자리) 오름차순 정렬. 중앙청과·원협노은은 물량·금액 실수치 + 두 법인 비율(합 100, 예 55:45).
+    물량 점유율 = 대전 4법인 물량 합계 대비 각 법인 비중(합 100%). 품목 4자리 표준코드 매핑은 후속 보강 예정.</p>"""
 
 
 CSS = """<style>
@@ -289,7 +349,11 @@ tr.our-corp td { font-weight:700; color:#0d47a1; border-top:1.5px solid #f9a825;
 th.hl { background:#fff3c4; color:#0d47a1; }
 td.hl { background:#fffdf0; font-weight:600; }
 tr.total-row { background:#f0f0f0; border-top:2px solid #888; }
-.product-table th, .product-table td { padding:4px 6px; font-size:10pt; }
+.product-table th, .product-table td { padding:4px 6px; font-size:9.5pt; }
+td.cat { text-align:center; color:#777; font-variant-numeric:tabular-nums; }
+th.won-h { background:#e8f5e9; color:#1b5e20; }
+td.won { background:#f4faf4; }
+td.rt { text-align:center; font-weight:600; color:#444; font-variant-numeric:tabular-nums; }
 .note { font-size:9pt; color:#777; margin-top:4px; }
 .footer { margin-top:24px; padding-top:8px; border-top:1px solid #ddd;
           font-size:9pt; color:#999; text-align:center; }
