@@ -299,20 +299,18 @@ def two_corp_table(agg, title):
     ta = (c1["amount"] + c2["amount"]) or 1
     return f"""<h3>{title}</h3>
     <table><thead><tr>
-        <th>항목</th><th class="hl">중앙청과</th><th>원협노은</th><th>비율(중앙:원협)</th>
+        <th>항목</th><th class="hl">중앙청과</th><th>원협노은</th>
     </tr></thead><tbody>
         <tr><td>물량(톤)</td><td class="num hl">{fmt_ton(c1['qty_kg'])}</td>
-            <td class="num">{fmt_ton(c2['qty_kg'])}</td>
-            <td class="num rt">{ratio_pct(c1['qty_kg'],c2['qty_kg'])}</td></tr>
+            <td class="num">{fmt_ton(c2['qty_kg'])}</td></tr>
         <tr><td>금액(만원)</td><td class="num hl">{fmt_manwon(c1['amount'])}</td>
-            <td class="num">{fmt_manwon(c2['amount'])}</td>
-            <td class="num rt">{ratio_pct(c1['amount'],c2['amount'])}</td></tr>
+            <td class="num">{fmt_manwon(c2['amount'])}</td></tr>
         <tr><td>점유율(물량)</td><td class="num hl">{fmt_pct(c1['qty_kg']/tq*100)}</td>
-            <td class="num">{fmt_pct(c2['qty_kg']/tq*100)}</td><td class="num">-</td></tr>
+            <td class="num">{fmt_pct(c2['qty_kg']/tq*100)}</td></tr>
         <tr><td>점유율(금액)</td><td class="num hl">{fmt_pct(c1['amount']/ta*100)}</td>
-            <td class="num">{fmt_pct(c2['amount']/ta*100)}</td><td class="num">-</td></tr>
+            <td class="num">{fmt_pct(c2['amount']/ta*100)}</td></tr>
     </tbody></table>
-    <p class="note">※ 대전노은 시장 내 두 법인 직접 비교 (중앙청과 강조). 비율 = 두 법인 합 100 기준(예 55:45)</p>"""
+    <p class="note">※ 대전노은 시장 내 두 법인 직접 비교 (중앙청과 강조). 점유율 = 두 법인 합 100 기준</p>"""
 
 
 def market_table(agg):
