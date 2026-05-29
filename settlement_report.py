@@ -60,9 +60,9 @@ AUCTION_BLOCKS = [
     ("04", frozenset({"기장"}), None, "담당자 없음"),
     ("91", None, None, "담당자 없음"),
     # ── 🍎 과일 파트 ──
-    ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None, "04:30 이기송 경매사"),
-    ("07", frozenset({"대추", "밤", "잣"}), None, "04:30 이기송 경매사"),
-    ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None, "04:30 이기송 경매사"),
+    ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None, "04:30 이기송 부장"),
+    ("07", frozenset({"대추", "밤", "잣"}), None, "04:30 이기송 부장"),
+    ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None, "04:30 이기송 부장"),
     ("06", frozenset({"곶감", "단감", "포도"}), None, "(김상걸, 차수호) 이사"),
     ("08", frozenset({"참외"}), None, "(김상걸, 차수호) 이사"),
     ("06", frozenset({"감귤", "만감"}), None, "윤정기 이사"),
@@ -70,8 +70,8 @@ AUCTION_BLOCKS = [
     ("06", frozenset({"배", "사과"}), None, "이광진 부장"),
     ("06", frozenset({"듀리안", "레몬", "망고", "망고스턴", "바나나", "아로니아",
                       "아보카도", "오렌지", "용과", "자몽", "참다래(키위)", "체리",
-                      "코코넛", "탄제린", "파인애플"}), None, "안대명 부장 (수입과일)"),
-    ("07", frozenset({"다래"}), None, "안대명 부장 (수입과일)"),
+                      "코코넛", "탄제린", "파인애플"}), None, "(안대명, 심세영) 부장 (수입과일)"),
+    ("07", frozenset({"다래"}), None, "(안대명, 심세영) 부장 (수입과일)"),
     ("16", None, None, "나머지 (땅콩·수삼·약용)"),
     ("18", None, None, "나머지 (땅콩·수삼·약용)"),
     ("19", None, None, "나머지 (땅콩·수삼·약용)"),
@@ -250,6 +250,17 @@ def validate_data(range_agg, product_data, last_day, range_records):
     if abs(prod_amt - corp_amt) > 1:
         warnings.append(f"금액 집계 불일치 — 품목합 {prod_amt/10000:,.0f}만원 ≠ 법인합 {corp_amt/10000:,.0f}만원")
 
+    # ④ 경매 블록 미배정(신규·계절 품목) 검사 — 계절에 새로 나온 품목이 경매사 지정에서 누락되면 경고.
+    #    (부류06·07·08·11·12처럼 품목을 경매사별로 나눈 부류에 새 품목이 나오면 여기에 잡힘)
+    product_cat = product_data[2]
+    unassigned = [p for p, _ in sorted_products
+                  if auction_block_index(p, product_cat.get(p, ("", ""))[0]) == _AUCTION_FALLBACK]
+    if unassigned:
+        warnings.append(
+            f"경매사 미배정 신규·계절 품목 {len(unassigned)}개: {', '.join(unassigned)} "
+            f"— settlement_report.py AUCTION_BLOCKS에 해당 품목의 경매사·위치 지정 필요 "
+            f"(표 맨 끝 '🆕 미배정' 줄에 임시 배치됨)")
+
     return warnings
 
 
@@ -347,9 +358,11 @@ def product_table(sorted_products, product_corp, product_cat):
             rows += f'<tr class="part-divider"><td colspan="12">{plabel}</td></tr>'
             prev_part = part
             prev_auc = None
-        auc = AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS) else "기타"
+        auc = (AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS)
+               else "🆕 미배정 (신규·계절 품목 — 경매사 지정 필요)")
         if auc != prev_auc:
-            rows += f'<tr class="auc-row"><td colspan="12">↳ {html_mod.escape(auc)}</td></tr>'
+            ac = "auc-row unassigned" if "미배정" in auc else "auc-row"
+            rows += f'<tr class="{ac}"><td colspan="12">↳ {html_mod.escape(auc)}</td></tr>'
             prev_auc = auc
         tq = totals["qty_kg"]
         j = product_corp[product][J]; w = product_corp[product][W]
@@ -415,6 +428,7 @@ tr.part-divider td { background:#1565c0; color:#fff; font-weight:700; font-size:
                      text-align:center; padding:7px; letter-spacing:1px; }
 tr.auc-row td { background:#eef4fb; color:#0d47a1; font-weight:600; font-size:9.5pt;
                 text-align:left; padding:4px 10px; border-top:1.5px solid #90caf9; }
+tr.auc-row.unassigned td { background:#fff3f3; color:#b71c1c; border-top:1.5px solid #d32f2f; }
 .star { color:#d32f2f; font-weight:700; }
 .note { font-size:9pt; color:#777; margin-top:4px; }
 .footer { margin-top:24px; padding-top:8px; border-top:1px solid #ddd;
