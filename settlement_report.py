@@ -31,62 +31,62 @@ MARKET_CODES = ["250001", "250003"]
 
 # 품목별 표 표시 순서 = 경매 진행 순서 (태은이 5/30 결재 — 경매시간·경매사 순서).
 # 부류번호·데이터는 그대로 유지하고 "표시 순서"만 재배치한다.
-# 각 블록 = (부류코드, 포함품목 frozenset|None=전체, 제외품목 frozenset|None).
+# 각 블록 = (부류코드, 포함품목 frozenset|None=전체, 제외품목 frozenset|None, 경매사라벨).
 # 블록 순서 = 표시 순서. 블록 내부는 물량(qty_kg) 내림차순.
-# 같은 부류가 여러 경매사에 나뉘면 부류코드가 표에 여러 번 등장(경매 순서이므로 정상).
+# 경매사 라벨이 바뀌면 표에 경매사 구분행 삽입. 여러 명은 "(이름, 이름)" 형식.
 AUCTION_BLOCKS = [
-    # ── 채소 파트 ──
-    ("17", None, None),                                                       # 00:00 송화신 이사
-    # 00:20 서병수·김선우 부장 (부류10은 타 경매사 담당 9품목 제외)
+    # ── 🥬 채소 파트 ──
+    ("17", None, None, "00:00 송화신 이사"),
     ("10", None, frozenset({"갓", "배추", "숙주나물", "우엉대", "콩나물",
-                            "토란대", "얼갈이배추", "열무", "양배추"})),
-    ("11", frozenset({"삼채"}), None),
-    ("12", frozenset({"겨자"}), None),
-    ("13", None, frozenset({"파프리카", "피망(단고추)"})),
-    ("14", None, None),
-    ("03", None, None),
-    ("09", None, None),                                                       # 00:30 강신창 부장
-    ("12", frozenset({"꽈리고추", "풋고추", "홍고추"}), None),                # 01:10 송화신 이사
-    ("13", frozenset({"파프리카", "피망(단고추)"}), None),
-    ("10", frozenset({"배추", "양배추", "얼갈이배추", "열무", "갓"}), None),  # 김기영·김언중 부장
-    ("11", frozenset({"무", "알타리무"}), None),
-    ("12", frozenset({"대파", "실파", "쪽파"}), None),
-    ("05", None, None),                                                       # 이용수 부장
-    ("11", frozenset({"당근"}), None),
-    ("12", frozenset({"양파"}), None),
-    ("04", frozenset({"옥수수"}), None),
-    ("10", frozenset({"숙주나물", "우엉대", "콩나물", "토란대"}), None),      # 오준서 경매사
-    ("11", frozenset({"연근", "우엉", "토란"}), None),
-    ("12", frozenset({"마늘", "생강"}), None),
-    ("04", frozenset({"기장"}), None),                                       # 담당자 없음(잔여)
-    ("91", None, None),
-    # ═══ 과일 파트 (04:30~) ═══
-    ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None),  # 04:30 이기송 경매사
-    ("07", frozenset({"대추", "밤", "잣"}), None),
-    ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None),
-    ("06", frozenset({"곶감", "단감", "포도"}), None),                        # 김상걸 이사
-    ("08", frozenset({"참외"}), None),
-    ("06", frozenset({"감귤", "만감"}), None),                               # 윤정기 이사
-    ("08", frozenset({"수박"}), None),
-    ("06", frozenset({"배", "사과"}), None),                                 # 이광진 부장
-    # 안대명 부장 (수입과일)
+                            "토란대", "얼갈이배추", "열무", "양배추"}), "00:20 (서병수, 김선우) 부장"),
+    ("11", frozenset({"삼채"}), None, "00:20 (서병수, 김선우) 부장"),
+    ("12", frozenset({"겨자"}), None, "00:20 (서병수, 김선우) 부장"),
+    ("13", None, frozenset({"파프리카", "피망(단고추)"}), "00:20 (서병수, 김선우) 부장"),
+    ("14", None, None, "00:20 (서병수, 김선우) 부장"),
+    ("03", None, None, "00:20 (서병수, 김선우) 부장"),
+    ("09", None, None, "00:30 강신창 부장"),
+    ("12", frozenset({"꽈리고추", "풋고추", "홍고추"}), None, "01:10 송화신 이사"),
+    ("13", frozenset({"파프리카", "피망(단고추)"}), None, "01:10 송화신 이사"),
+    ("10", frozenset({"배추", "양배추", "얼갈이배추", "열무", "갓"}), None, "(김기영, 김언중) 부장"),
+    ("11", frozenset({"무", "알타리무"}), None, "(김기영, 김언중) 부장"),
+    ("12", frozenset({"대파", "실파", "쪽파"}), None, "(김기영, 김언중) 부장"),
+    ("05", None, None, "이용수 부장"),
+    ("11", frozenset({"당근"}), None, "이용수 부장"),
+    ("12", frozenset({"양파"}), None, "이용수 부장"),
+    ("04", frozenset({"옥수수"}), None, "이용수 부장"),
+    ("10", frozenset({"숙주나물", "우엉대", "콩나물", "토란대"}), None, "오준서 경매사"),
+    ("11", frozenset({"연근", "우엉", "토란"}), None, "오준서 경매사"),
+    ("12", frozenset({"마늘", "생강"}), None, "오준서 경매사"),
+    ("04", frozenset({"기장"}), None, "담당자 없음"),
+    ("91", None, None, "담당자 없음"),
+    # ── 🍎 과일 파트 ──
+    ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None, "04:30 이기송 경매사"),
+    ("07", frozenset({"대추", "밤", "잣"}), None, "04:30 이기송 경매사"),
+    ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None, "04:30 이기송 경매사"),
+    ("06", frozenset({"곶감", "단감", "포도"}), None, "(김상걸, 차수호) 이사"),
+    ("08", frozenset({"참외"}), None, "(김상걸, 차수호) 이사"),
+    ("06", frozenset({"감귤", "만감"}), None, "윤정기 이사"),
+    ("08", frozenset({"수박"}), None, "윤정기 이사"),
+    ("06", frozenset({"배", "사과"}), None, "이광진 부장"),
     ("06", frozenset({"듀리안", "레몬", "망고", "망고스턴", "바나나", "아로니아",
                       "아보카도", "오렌지", "용과", "자몽", "참다래(키위)", "체리",
-                      "코코넛", "탄제린", "파인애플"}), None),
-    ("07", frozenset({"다래"}), None),
-    # ── 나머지 (땅콩·수삼·약용) ──
-    ("16", None, None),
-    ("18", None, None),
-    ("19", None, None),
+                      "코코넛", "탄제린", "파인애플"}), None, "안대명 부장 (수입과일)"),
+    ("07", frozenset({"다래"}), None, "안대명 부장 (수입과일)"),
+    ("16", None, None, "나머지 (땅콩·수삼·약용)"),
+    ("18", None, None, "나머지 (땅콩·수삼·약용)"),
+    ("19", None, None, "나머지 (땅콩·수삼·약용)"),
 ]
 _AUCTION_FALLBACK = len(AUCTION_BLOCKS) + 1
 # 과일 파트 시작 블록 인덱스 (채소엔 부류 06 없음 → 첫 06 블록이 과일 파트 시작점).
-FRUIT_START_BLOCK = next(i for i, (cc, _, _) in enumerate(AUCTION_BLOCKS) if cc == "06")
+FRUIT_START_BLOCK = next(i for i, b in enumerate(AUCTION_BLOCKS) if b[0] == "06")
+
+# 법인(공판장)별 입력 단위·방식이 상이하여 물량/비율 비교 시 주의가 필요한 품목 → * 표시.
+STAR_ITEMS = frozenset({"배추", "얼갈이배추", "열무", "실파", "쪽파"})
 
 
 def auction_block_index(product, category_code):
     """품목이 속하는 경매 블록 인덱스(표시 순서). 매칭 없으면 맨 뒤(_AUCTION_FALLBACK)."""
-    for i, (cc, include, exclude) in enumerate(AUCTION_BLOCKS):
+    for i, (cc, include, exclude, _label) in enumerate(AUCTION_BLOCKS):
         if cc != category_code:
             continue
         if include is not None and product not in include:
@@ -339,20 +339,27 @@ def product_table(sorted_products, product_corp, product_cat):
     J, W, DJ, NH = "25000301", "25000302", "25000102", "25000101"
     rows = ""
     prev_part = None
+    prev_auc = None
     for product, totals in sorted_products:
         cc, _ = product_cat.get(product, ("", ""))
-        part = "fruit" if auction_block_index(product, cc) >= FRUIT_START_BLOCK else "veg"
+        bidx = auction_block_index(product, cc)
+        part = "fruit" if bidx >= FRUIT_START_BLOCK else "veg"
         if part != prev_part:
-            label = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
-            rows += f'<tr class="part-divider"><td colspan="12">{label}</td></tr>'
+            plabel = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
+            rows += f'<tr class="part-divider"><td colspan="12">{plabel}</td></tr>'
             prev_part = part
+            prev_auc = None
+        auc = AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS) else "기타"
+        if auc != prev_auc:
+            rows += f'<tr class="auc-row"><td colspan="12">↳ {html_mod.escape(auc)}</td></tr>'
+            prev_auc = auc
         tq = totals["qty_kg"]
         j = product_corp[product][J]; w = product_corp[product][W]
         dj = product_corp[product][DJ]; nh = product_corp[product][NH]
         def pq(d): return (d["qty_kg"] / tq * 100) if tq else 0
         rows += f"""<tr>
             <td class="cat">{html_mod.escape(cc)}</td>
-            <td>{html_mod.escape(product)}</td>
+            <td>{html_mod.escape(product)}{'<span class="star">*</span>' if product in STAR_ITEMS else ''}</td>
             <td class="num hl">{fmt_ton(j['qty_kg'])}</td><td class="num hl">{fmt_manwon(j['amount'])}</td>
             <td class="num won">{fmt_ton(w['qty_kg'])}</td><td class="num won">{fmt_manwon(w['amount'])}</td>
             <td class="num rt">{ratio_pct(j['qty_kg'], w['qty_kg'])}</td>
@@ -374,9 +381,9 @@ def product_table(sorted_products, product_corp, product_cat):
         <th>물량</th><th>금액</th>
         <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
     </tr></thead><tbody>{rows}</tbody></table>
-    <p class="note">※ 경매 진행 순서(채소: 송화신→서병수·김선우→강신창→송화신→김기영·김언중→이용수→오준서→담당자없음 / 과일) 배열,
-    부류 내부는 물량 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
-    중앙청과·원협노은은 물량·금액 실수치 + 두 법인 비율(합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.</p>"""
+    <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열, 부류 내부는 물량 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
+    중앙청과·원협노은은 물량·금액 실수치 + 두 법인 비율(합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.<br>
+    <span class="star">*</span> 표시 품목(배추·얼갈이배추·열무·실파·쪽파 등)은 <strong>법인(공판장)별 입력 단위·방식이 상이</strong>하여 물량·비율 직접 비교 시 주의 요망.</p>"""
 
 
 CSS = """<style>
@@ -408,6 +415,9 @@ td.won { background:#f4faf4; }
 td.rt { text-align:center; font-weight:600; color:#444; font-variant-numeric:tabular-nums; }
 tr.part-divider td { background:#1565c0; color:#fff; font-weight:700; font-size:11pt;
                      text-align:center; padding:7px; letter-spacing:1px; }
+tr.auc-row td { background:#eef4fb; color:#0d47a1; font-weight:600; font-size:9.5pt;
+                text-align:left; padding:4px 10px; border-top:1.5px solid #90caf9; }
+.star { color:#d32f2f; font-weight:700; }
 .note { font-size:9pt; color:#777; margin-top:4px; }
 .footer { margin-top:24px; padding-top:8px; border-top:1px solid #ddd;
           font-size:9pt; color:#999; text-align:center; }
