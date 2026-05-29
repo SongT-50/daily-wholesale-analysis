@@ -21,7 +21,7 @@ from email.mime.application import MIMEApplication
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-from settlement_report import build_report, find_last_settled_day
+from settlement_report import build_report, resolve_auto_end, SETTLE_LAG_DAYS
 
 WEEKDAYS = "월화수목금토일"
 
@@ -49,8 +49,8 @@ def main():
         y, m = yest.year, yest.month
 
     start = date(y, m, 1)
-    last_dom = calendar.monthrange(y, m)[1]
-    end = find_last_settled_day(start, date(y, m, last_dom))
+    # 공판장 정산 2~3일 지연 → 오늘-LAG일 이내 4법인 완비된 마지막 정산일까지만 (미완성 발송 방지)
+    end = resolve_auto_end(start)
 
     print("=" * 60)
     print(f"정산 보고서 2종 생성: {y}-{m:02d}")

@@ -6,10 +6,10 @@ month_report.py 양식(라이트 테마, A4 landscape) 기반. 전년 비교 없
 사용: python settlement_report.py 2026-05-01 2026-05-23
   python settlement_report.py            → 2026-05 자동 (4법인 모두 정산된 마지막 날까지)
 """
-import os, json, sys, html as html_mod, argparse
+import os, json, sys, html as html_mod, argparse, calendar
 from pathlib import Path
 from collections import defaultdict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -76,6 +76,24 @@ def find_last_settled_day(start: date, end: date):
             return cur
         cur = date.fromordinal(cur.toordinal() - 1)
     return end
+
+
+# 공판장(원협노은·농협대전) 정산 2~3일 지연 → 오늘로부터 N일 지난 날까지만 집계해
+# 미완성(절반짜리) 수치가 자동 메일로 나가는 것을 방지. 태은이 결재(2026-05-29): 3일.
+SETTLE_LAG_DAYS = int(os.getenv("SETTLE_LAG_DAYS", "3"))
+
+
+def resolve_auto_end(start: date, today: date = None):
+    """자동 모드 종료일: min(월말, 오늘-LAG)까지 탐색 → 4법인 완비된 마지막 정산일.
+    예) 오늘 5/29 · LAG 3 → 5/26까지만 본다 (D+3 지나 백필 안정된 자료만)."""
+    # Actions runner는 UTC → KST(+9) 기준 날짜로 환산해야 "오늘"이 한국 날짜와 일치
+    today = today or datetime.now(timezone(timedelta(hours=9))).date()
+    last_dom = calendar.monthrange(start.year, start.month)[1]
+    cutoff = today - timedelta(days=SETTLE_LAG_DAYS)
+    search_end = min(date(start.year, start.month, last_dom), cutoff)
+    if search_end < start:
+        search_end = start
+    return find_last_settled_day(start, search_end)
 
 
 def aggregate(records):
@@ -355,7 +373,7 @@ def build_report(start: date, end: date, out_arg=None):
     html_content = generate_html(start, end, last_day, range_agg, day_agg,
                                  product_data, days, daily=daily, warnings=warnings)
     default_name = (f"settlement_report_{last_day.isoformat()}_daily.html" if daily
-                    else f"settlement_report_{start.year}-{start.month:02d}.html")
+                    else f"settlement_report_{start.isoformat()}_to_{end.isoformat()}.html")
     out = _resolve_out(out_arg, default_name)
     out.write_text(html_content, encoding="utf-8")
 
@@ -374,22 +392,22 @@ def build_report(start: date, end: date, out_arg=None):
 
 
 def main():
-    import calendar
     parser = argparse.ArgumentParser(description="대전 도매시장 정산 보고서 (기간 + 마지막날 + 전품목)")
     parser.add_argument("start", nargs="?", default="2026-05-01")
-    parser.add_argument("end", nargs="?", default=None, help="미지정 시 4법인 모두 정산된 마지막 날 자동 탐색")
-    parser.add_argument("--out", default=None, help="출력 파일명(미지정 시 settlement_report_YYYY-MM.html)")
+    parser.add_argument("end", nargs="?", default=None,
+                        help=f"미지정 시 4법인 완비 + 오늘-{SETTLE_LAG_DAYS}일 이내 마지막 정산일 자동 탐색")
+    parser.add_argument("--out", default=None, help="출력 파일명(미지정 시 settlement_report_시작_to_종료.html)")
     parser.add_argument("--also-daily", action="store_true",
                         help="누계본 생성 후 마지막 정산일 하루치본도 함께 생성")
     args = parser.parse_args()
 
     start = date.fromisoformat(args.start)
     if args.end:
-        end = date.fromisoformat(args.end)
+        # 명시 지정 시에는 LAG 컷 없이 그 날을 4법인 완비 기준으로만 탐색 (수동 분석용)
+        end = find_last_settled_day(start, date.fromisoformat(args.end))
     else:
-        # 해당 월 말일까지 탐색 → 4법인 완비된 마지막 정산일 자동 검색
-        last_dom = calendar.monthrange(start.year, start.month)[1]
-        end = find_last_settled_day(start, date(start.year, start.month, last_dom))
+        # 공판장 정산 지연 → 오늘-LAG일 이내의 4법인 완비된 마지막 정산일까지만 (미완성 발송 방지)
+        end = resolve_auto_end(start)
 
     print("=" * 60)
     stats = build_report(start, end, args.out)
