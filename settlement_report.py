@@ -29,27 +29,59 @@ NOEUN_CORPS = ["25000301", "25000302"]
 OJEONG_CORPS = ["25000102", "25000101"]
 MARKET_CODES = ["250001", "250003"]
 
-# 품목별 표 커스텀 표시 순서 (태은이 5/29 결재 — 경매사 실무 편의용).
+# 품목별 표 표시 순서 = 경매 진행 순서 (태은이 5/30 결재 — 경매시간·경매사 순서).
 # 부류번호·데이터는 그대로 유지하고 "표시 순서"만 재배치한다.
-# 부류 단위 이동 + 개별 품목(당근·양파·땅콩) 빼내기.
-#   06 07 08 → 땅콩(16) → 18 19 → 09 10 11(당근제외) → 05 → 당근 → 양파
-#   → 12(양파제외) 13 14 → 16(땅콩제외:기타·차류·참깨) → 17 → 03 04 → 91
-# 새 부류코드가 등장하면 목록에 없어 맨 뒤로 정렬(_DISP_FALLBACK).
-DISPLAY_ORDER = ["06", "07", "08", "__땅콩__", "18", "19", "09", "10", "11", "05",
-                 "__당근__", "__양파__", "12", "13", "14", "16", "17", "03", "04", "91"]
-_DISP_FALLBACK = len(DISPLAY_ORDER) + 1
-# 개별로 빼내 옮기는 품목: (품목명, 원래부류코드) -> 표시 위치 토큰.
-# 땅콩만 08 뒤(__땅콩__)로 빼고, 부류16 나머지(기타·차류·참깨)는 "16" 위치(14 뒤)로.
-MOVED_ITEMS = {("당근", "11"): "__당근__", ("양파", "12"): "__양파__", ("땅콩", "16"): "__땅콩__"}
+# 각 블록 = (부류코드, 포함품목 frozenset|None=전체, 제외품목 frozenset|None).
+# 블록 순서 = 표시 순서. 블록 내부는 물량(qty_kg) 내림차순.
+# 같은 부류가 여러 경매사에 나뉘면 부류코드가 표에 여러 번 등장(경매 순서이므로 정상).
+AUCTION_BLOCKS = [
+    # ── 채소 파트 ──
+    ("17", None, None),                                                       # 00:00 송화신 이사
+    # 00:20 서병수·김선우 부장 (부류10은 타 경매사 담당 9품목 제외)
+    ("10", None, frozenset({"갓", "배추", "숙주나물", "우엉대", "콩나물",
+                            "토란대", "얼갈이배추", "열무", "양배추"})),
+    ("11", frozenset({"삼채"}), None),
+    ("12", frozenset({"겨자"}), None),
+    ("13", None, frozenset({"파프리카", "피망(단고추)"})),
+    ("14", None, None),
+    ("03", None, None),
+    ("09", None, None),                                                       # 00:30 강신창 부장
+    ("12", frozenset({"꽈리고추", "풋고추", "홍고추"}), None),                # 01:10 송화신 이사
+    ("13", frozenset({"파프리카", "피망(단고추)"}), None),
+    ("10", frozenset({"배추", "양배추", "얼갈이배추", "열무", "갓"}), None),  # 김기영·김언중 부장
+    ("11", frozenset({"무", "알타리무"}), None),
+    ("12", frozenset({"대파", "실파", "쪽파"}), None),
+    ("05", None, None),                                                       # 이용수 부장
+    ("11", frozenset({"당근"}), None),
+    ("12", frozenset({"양파"}), None),
+    ("04", frozenset({"옥수수"}), None),
+    ("10", frozenset({"숙주나물", "우엉대", "콩나물", "토란대"}), None),      # 오준서 경매사
+    ("11", frozenset({"연근", "우엉", "토란"}), None),
+    ("12", frozenset({"마늘", "생강"}), None),
+    ("16", None, None),                                                       # 담당자 없음
+    ("04", frozenset({"기장"}), None),
+    ("91", None, None),
+    # ── 과일 파트 (물량순) ──
+    ("06", None, None),
+    ("07", None, None),
+    ("08", None, None),
+    ("18", None, None),
+    ("19", None, None),
+]
+_AUCTION_FALLBACK = len(AUCTION_BLOCKS) + 1
 
 
-def display_sort_key(product, category_code):
-    """커스텀 표시 순서 정렬 키. (블록 인덱스, 품목명). 부류 내부는 품목명 가나다순."""
-    token = MOVED_ITEMS.get((product, category_code))
-    if token:
-        return (DISPLAY_ORDER.index(token), product)
-    idx = DISPLAY_ORDER.index(category_code) if category_code in DISPLAY_ORDER else _DISP_FALLBACK
-    return (idx, product)
+def auction_block_index(product, category_code):
+    """품목이 속하는 경매 블록 인덱스(표시 순서). 매칭 없으면 맨 뒤(_AUCTION_FALLBACK)."""
+    for i, (cc, include, exclude) in enumerate(AUCTION_BLOCKS):
+        if cc != category_code:
+            continue
+        if include is not None and product not in include:
+            continue
+        if exclude is not None and product in exclude:
+            continue
+        return i
+    return _AUCTION_FALLBACK
 
 
 def load_day(d: date):
@@ -151,10 +183,10 @@ def aggregate_by_product(records):
         product_total[product]["amount"] += amt
         product_corp[product][code]["qty_kg"] += qty
         product_corp[product][code]["amount"] += amt
-    # 커스텀 표시 순서(DISPLAY_ORDER) + 당근·양파 개별 이동. 부류 내부는 품목명 가나다순.
+    # 경매 진행 순서(AUCTION_BLOCKS) + 블록 내부는 물량(qty_kg) 내림차순.
     sorted_products = sorted(
         product_total.items(),
-        key=lambda x: display_sort_key(x[0], product_cat[x[0]][0]),
+        key=lambda x: (auction_block_index(x[0], product_cat[x[0]][0]), -x[1]["qty_kg"]),
     )
     return sorted_products, product_corp, product_cat
 
@@ -308,7 +340,7 @@ def product_table(sorted_products, product_corp, product_cat):
             <td class="num rt">{ratio_pct(j['amount'], w['amount'])}</td>
             <td class="num hl">{fmt_pct(pq(j))}</td><td class="num won">{fmt_pct(pq(w))}</td>
             <td class="num">{fmt_pct(pq(dj))}</td><td class="num">{fmt_pct(pq(nh))}</td></tr>"""
-    return f"""<h3>품목별 정산 (부류코드순 · 전 품목 {len(sorted_products)}개) — 중앙청과·원협노은 강조</h3>
+    return f"""<h3>품목별 정산 (경매 진행 순서 · 전 품목 {len(sorted_products)}개) — 중앙청과·원협노은 강조</h3>
     <table class="product-table"><thead>
     <tr>
         <th rowspan="2">부류</th><th rowspan="2">품목</th>
@@ -323,8 +355,9 @@ def product_table(sorted_products, product_corp, product_cat):
         <th>물량</th><th>금액</th>
         <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
     </tr></thead><tbody>{rows}</tbody></table>
-    <p class="note">※ 부류코드(2자리) 오름차순 정렬. 중앙청과·원협노은은 물량·금액 실수치 + 두 법인 비율(합 100, 예 55:45).
-    물량 점유율 = 대전 4법인 물량 합계 대비 각 법인 비중(합 100%). 품목 4자리 표준코드 매핑은 후속 보강 예정.</p>"""
+    <p class="note">※ 경매 진행 순서(채소: 송화신→서병수·김선우→강신창→송화신→김기영·김언중→이용수→오준서→담당자없음 / 과일) 배열,
+    부류 내부는 물량 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
+    중앙청과·원협노은은 물량·금액 실수치 + 두 법인 비율(합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.</p>"""
 
 
 CSS = """<style>
