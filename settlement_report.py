@@ -80,6 +80,13 @@ _AUCTION_FALLBACK = len(AUCTION_BLOCKS) + 1
 # 과일 파트 시작 블록 인덱스 (채소엔 부류 06 없음 → 첫 06 블록이 과일 파트 시작점).
 FRUIT_START_BLOCK = next(i for i, b in enumerate(AUCTION_BLOCKS) if b[0] == "06")
 
+# 경매사 라벨이 처음 등장하는 블록 인덱스 → 같은 경매사 = 한 덩어리로 묶기 위한 순서표.
+# (태은이 5/30 방식2 결재: 한 경매사가 여러 부류를 다뤄도 부류 무시하고 그 경매사 품목 전체를 금액순으로)
+_LABEL_ORDER = {}
+for _i, _b in enumerate(AUCTION_BLOCKS):
+    if _b[3] not in _LABEL_ORDER:
+        _LABEL_ORDER[_b[3]] = _i
+
 # 법인(공판장)별 입력 단위·방식이 상이하여 물량/비율 비교 시 주의가 필요한 품목 → * 표시.
 STAR_ITEMS = frozenset({"배추", "얼갈이배추", "열무", "실파", "쪽파"})
 
@@ -95,6 +102,15 @@ def auction_block_index(product, category_code):
             continue
         return i
     return _AUCTION_FALLBACK
+
+
+def auction_label_order(product, category_code):
+    """품목이 속한 경매사 그룹의 정렬 순서값 (같은 경매사 = 같은 값 = 한 덩어리).
+    미배정 품목은 맨 뒤(_AUCTION_FALLBACK)."""
+    bidx = auction_block_index(product, category_code)
+    if bidx >= len(AUCTION_BLOCKS):
+        return _AUCTION_FALLBACK
+    return _LABEL_ORDER[AUCTION_BLOCKS[bidx][3]]
 
 
 def load_day(d: date):
@@ -196,10 +212,11 @@ def aggregate_by_product(records):
         product_total[product]["amount"] += amt
         product_corp[product][code]["qty_kg"] += qty
         product_corp[product][code]["amount"] += amt
-    # 경매 진행 순서(AUCTION_BLOCKS) + 블록 내부는 물량(qty_kg) 내림차순.
+    # 경매사 그룹 순서(시간순) + 같은 경매사 안에서는 부류 무시하고 금액(amount) 내림차순.
+    # (태은이 5/30 방식2 결재)
     sorted_products = sorted(
         product_total.items(),
-        key=lambda x: (auction_block_index(x[0], product_cat[x[0]][0]), -x[1]["qty_kg"]),
+        key=lambda x: (auction_label_order(x[0], product_cat[x[0]][0]), -x[1]["amount"]),
     )
     return sorted_products, product_corp, product_cat
 
@@ -342,9 +359,9 @@ def market_table(agg):
 
 
 def product_table(sorted_products, product_corp, product_cat):
-    """품목별 표 (부류코드순). 중앙청과·원협노은은 물량(톤)·금액(만원) 실수치 +
-    중앙:원협 비율(물량·금액, 55:45 형태). 4법인 전체는 물량 점유율(%)로 표기.
-    (태은이 5/29 요청: 두 법인 실수치 + 두 법인 비율 + 4법인 물량 비율)"""
+    """품목별 표 (경매 진행 순서, 블록 내부 금액순). 중앙청과·원협노은은 금액(만원)·물량(톤) 실수치 +
+    중앙:원협 비율(금액·물량, 55:45 형태). 4법인 전체는 물량 점유율(%)로 표기.
+    (태은이 5/30 요청: 금액·물량 순서 + 경매사 블록 내부 금액순 정렬)"""
     J, W, DJ, NH = "25000301", "25000302", "25000102", "25000101"
     rows = ""
     prev_part = None
@@ -371,10 +388,10 @@ def product_table(sorted_products, product_corp, product_cat):
         rows += f"""<tr>
             <td class="cat">{html_mod.escape(cc)}</td>
             <td>{html_mod.escape(product)}{'<span class="star">*</span>' if product in STAR_ITEMS else ''}</td>
-            <td class="num hl">{fmt_ton(j['qty_kg'])}</td><td class="num hl">{fmt_manwon(j['amount'])}</td>
-            <td class="num won">{fmt_ton(w['qty_kg'])}</td><td class="num won">{fmt_manwon(w['amount'])}</td>
-            <td class="num rt">{ratio_pct(j['qty_kg'], w['qty_kg'])}</td>
+            <td class="num hl">{fmt_manwon(j['amount'])}</td><td class="num hl">{fmt_ton(j['qty_kg'])}</td>
+            <td class="num won">{fmt_manwon(w['amount'])}</td><td class="num won">{fmt_ton(w['qty_kg'])}</td>
             <td class="num rt">{ratio_pct(j['amount'], w['amount'])}</td>
+            <td class="num rt">{ratio_pct(j['qty_kg'], w['qty_kg'])}</td>
             <td class="num hl">{fmt_pct(pq(j))}</td><td class="num won">{fmt_pct(pq(w))}</td>
             <td class="num">{fmt_pct(pq(dj))}</td><td class="num">{fmt_pct(pq(nh))}</td></tr>"""
     return f"""<h3>품목별 정산 (경매 진행 순서 · 전 품목 {len(sorted_products)}개) — 중앙청과·원협노은 강조</h3>
@@ -387,13 +404,13 @@ def product_table(sorted_products, product_corp, product_cat):
         <th colspan="4">물량 점유율 (4법인)</th>
     </tr>
     <tr>
-        <th class="hl">물량(톤)</th><th class="hl">금액(만원)</th>
-        <th class="won-h">물량(톤)</th><th class="won-h">금액(만원)</th>
-        <th>물량</th><th>금액</th>
+        <th class="hl">금액(만원)</th><th class="hl">물량(톤)</th>
+        <th class="won-h">금액(만원)</th><th class="won-h">물량(톤)</th>
+        <th>금액</th><th>물량</th>
         <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
     </tr></thead><tbody>{rows}</tbody></table>
-    <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열, 부류 내부는 물량 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
-    중앙청과·원협노은은 물량·금액 실수치 + 두 법인 비율(합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.<br>
+    <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열, 경매사 블록 내부는 금액 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
+    중앙청과·원협노은은 금액·물량 실수치 + 두 법인 비율(금액·물량, 합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.<br>
     <span class="star">*</span> 표시 품목(배추·얼갈이배추·열무·실파·쪽파 등)은 <strong>법인(공판장)별 입력 단위·방식이 상이</strong>하여 물량·비율 직접 비교 시 주의 요망.</p>"""
 
 
