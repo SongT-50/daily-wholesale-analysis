@@ -50,20 +50,20 @@ AUCTION_BLOCKS = [
     ("10", frozenset({"배추", "양배추", "얼갈이배추", "열무", "갓"}), None, "(김기영, 김언중) 부장"),
     ("11", frozenset({"무", "알타리무"}), None, "(김기영, 김언중) 부장"),
     ("12", frozenset({"대파", "실파", "쪽파"}), None, "(김기영, 김언중) 부장"),
+    ("04", frozenset({"옥수수"}), None, "(김기영, 김언중) 부장"),
     ("05", None, None, "이용수 부장"),
     ("11", frozenset({"당근"}), None, "이용수 부장"),
     ("12", frozenset({"양파"}), None, "이용수 부장"),
-    ("04", frozenset({"옥수수"}), None, "이용수 부장"),
     ("10", frozenset({"숙주나물", "우엉대", "콩나물", "토란대"}), None, "오준서 경매사"),
     ("11", frozenset({"연근", "우엉", "토란"}), None, "오준서 경매사"),
     ("12", frozenset({"마늘", "생강"}), None, "오준서 경매사"),
-    ("04", frozenset({"기장"}), None, "담당자 없음"),
-    ("91", None, None, "담당자 없음"),
+    ("04", frozenset({"기장"}), None, "오준서 경매사"),
+    ("91", None, None, "오준서 경매사"),
     # ── 🍎 과일 파트 ──
     ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None, "04:30 이기송 부장"),
     ("07", frozenset({"대추", "밤", "잣"}), None, "04:30 이기송 부장"),
     ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None, "04:30 이기송 부장"),
-    ("06", frozenset({"곶감", "단감", "포도"}), None, "(김상걸, 차수호) 이사"),
+    ("06", frozenset({"곶감", "단감", "떫은감", "포도"}), None, "(김상걸, 차수호) 이사"),
     ("08", frozenset({"참외"}), None, "(김상걸, 차수호) 이사"),
     ("06", frozenset({"감귤", "만감"}), None, "윤정기 이사"),
     ("08", frozenset({"수박"}), None, "윤정기 이사"),
@@ -212,11 +212,17 @@ def aggregate_by_product(records):
         product_total[product]["amount"] += amt
         product_corp[product][code]["qty_kg"] += qty
         product_corp[product][code]["amount"] += amt
-    # 경매사 그룹 순서(시간순) + 같은 경매사 안에서는 부류 무시하고 금액(amount) 내림차순.
-    # (태은이 5/30 방식2 결재)
+    # 경매사 그룹 순서(시간순) + 같은 경매사 안에서는 부류 무시하고 중앙청과 금액 내림차순.
+    # (2026-06-01 태은이 결재: 표의 표시 금액=중앙청과 기준과 정렬을 일치시킴.
+    #  5/30 방식2의 '4법인 합계' → '중앙청과'로 변경. 중앙청과 취급 없는 품목(중앙 0)은
+    #  4법인 합계 금액으로 2차 정렬해 그룹 내 순서를 안정적으로 유지.)
+    JUNG_CORP = "25000301"  # 대전중앙청과
+    def _jung_amt(p):
+        return product_corp.get(p, {}).get(JUNG_CORP, {}).get("amount", 0)
     sorted_products = sorted(
         product_total.items(),
-        key=lambda x: (auction_label_order(x[0], product_cat[x[0]][0]), -x[1]["amount"]),
+        key=lambda x: (auction_label_order(x[0], product_cat[x[0]][0]),
+                       -_jung_amt(x[0]), -x[1]["amount"]),
     )
     return sorted_products, product_corp, product_cat
 
