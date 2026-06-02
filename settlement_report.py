@@ -179,6 +179,25 @@ def resolve_auto_end(start: date, today: date = None):
     return find_last_settled_day(start, search_end)
 
 
+def resolve_report_range(today: date = None):
+    """자동 모드 (start, end) 한 쌍. 보고서 '기준 월'을 오늘이 아니라
+    안정화 기준일(오늘 - LAG)의 월로 잡는다.
+
+    공판장(원협노은·농협대전)이 2~3일 늦게 올리므로, 달이 막 바뀐 직후
+    (예: 6/1~6/3)에는 새 달 데이터가 아직 D+LAG를 안 지나 미완성이다.
+    이때 '어제 기준 월'로 잡으면 새 달 첫날(미완비)을 보고서로 만들어
+    버리는 월 경계 버그가 난다(2026-06-02 메일: 마지막 정산일 6/1·4법인 미완비).
+    → anchor = 오늘 - LAG 의 월을 기준으로 삼아, 새 달 데이터가 익기 전엔
+    전월 누계를 유지하고, D+LAG가 지나면(예: 6/4~) 자동으로 새 달로 전환한다.
+    예) 오늘 6/2 · LAG 3 → anchor 5/30 → 5월 누계(~5월 완비 마지막날).
+        오늘 6/4 · LAG 3 → anchor 6/1 → 6월 누계(6/1~)."""
+    today = today or datetime.now(timezone(timedelta(hours=9))).date()
+    anchor = today - timedelta(days=SETTLE_LAG_DAYS)
+    start = date(anchor.year, anchor.month, 1)
+    end = resolve_auto_end(start, today)
+    return start, end
+
+
 def aggregate(records):
     agg = {code: {"qty_kg": 0, "amount": 0, "count": 0} for code in CORP_ORDER}
     for r in records:
@@ -556,7 +575,8 @@ def build_report(start: date, end: date, out_arg=None):
 
 def main():
     parser = argparse.ArgumentParser(description="대전 도매시장 정산 보고서 (기간 + 마지막날 + 전품목)")
-    parser.add_argument("start", nargs="?", default="2026-05-01")
+    parser.add_argument("start", nargs="?", default=None,
+                        help=f"미지정 시 안정화 기준월(오늘-{SETTLE_LAG_DAYS}일의 달) 1일부터 자동")
     parser.add_argument("end", nargs="?", default=None,
                         help=f"미지정 시 4법인 완비 + 오늘-{SETTLE_LAG_DAYS}일 이내 마지막 정산일 자동 탐색")
     parser.add_argument("--out", default=None, help="출력 파일명(미지정 시 settlement_report_시작_to_종료.html)")
@@ -564,13 +584,17 @@ def main():
                         help="누계본 생성 후 마지막 정산일 하루치본도 함께 생성")
     args = parser.parse_args()
 
-    start = date.fromisoformat(args.start)
-    if args.end:
-        # 명시 지정 시에는 LAG 컷 없이 그 날을 4법인 완비 기준으로만 탐색 (수동 분석용)
-        end = find_last_settled_day(start, date.fromisoformat(args.end))
+    if args.start is None:
+        # 인자 없음 → 자동 모드: 기준 월을 '오늘-LAG'의 달로 (월 경계 버그 방지)
+        start, end = resolve_report_range()
     else:
-        # 공판장 정산 지연 → 오늘-LAG일 이내의 4법인 완비된 마지막 정산일까지만 (미완성 발송 방지)
-        end = resolve_auto_end(start)
+        start = date.fromisoformat(args.start)
+        if args.end:
+            # 명시 지정 시에는 LAG 컷 없이 그 날을 4법인 완비 기준으로만 탐색 (수동 분석용)
+            end = find_last_settled_day(start, date.fromisoformat(args.end))
+        else:
+            # 공판장 정산 지연 → 오늘-LAG일 이내의 4법인 완비된 마지막 정산일까지만 (미완성 발송 방지)
+            end = resolve_auto_end(start)
 
     print("=" * 60)
     stats = build_report(start, end, args.out)

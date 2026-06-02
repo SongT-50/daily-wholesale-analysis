@@ -21,7 +21,7 @@ from email.mime.application import MIMEApplication
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-from settlement_report import build_report, resolve_auto_end, SETTLE_LAG_DAYS
+from settlement_report import build_report, resolve_auto_end, resolve_report_range, SETTLE_LAG_DAYS
 
 WEEKDAYS = "월화수목금토일"
 
@@ -44,13 +44,14 @@ def main():
 
     if args.month:
         y, m = (int(x) for x in args.month.split("-"))
+        start = date(y, m, 1)
+        # 명시 월 지정 시에도 LAG 컷은 적용 (미완성 발송 방지)
+        end = resolve_auto_end(start)
     else:
-        yest = date.today() - timedelta(days=1)
-        y, m = yest.year, yest.month
-
-    start = date(y, m, 1)
-    # 공판장 정산 2~3일 지연 → 오늘-LAG일 이내 4법인 완비된 마지막 정산일까지만 (미완성 발송 방지)
-    end = resolve_auto_end(start)
+        # 공판장 정산 2~3일 지연 → 기준 월을 '오늘'이 아니라 '오늘-LAG'(안정화 기준일)의 달로.
+        # 월초엔 전월 누계 유지, 새 달 데이터가 D+LAG 지나면 자동 전환 (월 경계 버그 방지).
+        start, end = resolve_report_range()
+        y, m = start.year, start.month
 
     print("=" * 60)
     print(f"정산 보고서 2종 생성: {y}-{m:02d}")
