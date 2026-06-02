@@ -110,9 +110,11 @@ jobs:
           AUCTION_ARCHIVE_DIR: data
           SETTLEMENT_OUT_DIR: ${{ github.workspace }}
         run: |
-          MONTH=$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m)
-          echo "정산 보고서 2종(누계+하루치) 생성 및 메일 발송: $MONTH"
-          python send_settlement_email.py --month "$MONTH" || echo "정산 보고서 메일 실패"
+          # --month 미지정 → 자동 모드(resolve_report_range): 기준월을 '오늘-LAG'의 달로.
+          # 월초엔 전월 누계 유지, 새 달 데이터가 D+LAG 지나면 자동 전환 (월 경계 버그 방지).
+          # (이전: --month "$(date -d yesterday +%Y-%m)" 강제 지정 → 6/1 진입 시 6월 미완비 발송 버그)
+          echo "정산 보고서 2종(누계+하루치) 생성 및 메일 발송 (자동 기준월)"
+          python send_settlement_email.py || echo "정산 보고서 메일 실패"
 
       - name: Send DJC management report email
         env:
