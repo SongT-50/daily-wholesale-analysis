@@ -326,35 +326,53 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
     return result
 
 
-def backfill(date: str, market_codes: dict[str, str]) -> bool:
+def backfill(date: str, market_codes: dict[str, str], max_lag_days: int = 5) -> bool:
     """공판장 정산 지연 보정 — 기존 데이터보다 많으면 덮어쓰기.
 
-    공판장(농협/원협)은 청과법인보다 정산 업로드가 1~2일 늦음.
-    기존 파일의 건수와 비교하여 신규 데이터가 더 많을 때만 저장.
-    반환: True = 업데이트됨, False = 변동 없음
+    공판장(농협/원협)은 청과법인보다 정산 업로드가 3일 이상 늦는 경우가 있음.
+    - 안정화 skip: 대상일 + max_lag_days 이후에 수집된 데이터는 더 받아도 안 늘 가능성이
+      높으므로 재수집(API 호출)을 건너뛴다. (윈도우를 D+5로 넓혀도 호출 폭증 방지)
+    - 손실 방지: collect()는 data/ + 아카이브를 즉시 덮어쓰므로, 새 수집이 기존보다
+      적거나 같으면 두 파일 모두 원본으로 복원한다. (구버전의 `pass`만 두던 버그 수정)
+    반환: True = 업데이트됨, False = 변동 없음/skip
     """
-    existing_file = OUTPUT_DIR / f"auction_{date}.json"
-    old_count = 0
-    if existing_file.exists():
-        with open(existing_file, "r", encoding="utf-8") as f:
-            old_data = json.load(f)
-        old_count = old_data.get("total_collected", 0)
+    from datetime import date as _date
 
-    # 새로 수집
+    out_file = OUTPUT_DIR / f"auction_{date}.json"
+    arch_file = ARCHIVE_DIR / date[:7] / f"auction_{date}.json"
+    old_count = 0
+    old_out_bytes = old_arch_bytes = None
+
+    if out_file.exists():
+        old_out_bytes = out_file.read_bytes()
+        old_data = json.loads(old_out_bytes)
+        old_count = old_data.get("total_collected", 0)
+        collected = (old_data.get("collected_at", "") or "")[:10]
+        if collected:
+            try:
+                if (_date.fromisoformat(collected) - _date.fromisoformat(date)).days >= max_lag_days:
+                    print(f"  - {date} 이미 안정화 (수집일 {collected}, D+{max_lag_days}↑) — 재수집 skip")
+                    return False
+            except ValueError:
+                pass
+    if arch_file.exists():
+        old_arch_bytes = arch_file.read_bytes()
+
+    # 새로 수집 (collect가 data/ + 아카이브 둘 다 즉시 저장)
     new_data = collect(date, market_codes)
     new_count = new_data.get("total_collected", 0)
 
     if new_count > old_count:
-        diff = new_count - old_count
-        print(f"  ✓ {date} 보정 완료: {old_count:,} → {new_count:,}건 (+{diff:,}건)")
+        print(f"  ✓ {date} 보정 완료: {old_count:,} → {new_count:,}건 (+{new_count - old_count:,}건)")
         return True
-    else:
-        # 기존 데이터 복원 (collect가 이미 덮어썼으므로)
-        if old_count > 0 and existing_file.exists():
-            # collect()가 이미 저장했지만, 동일하거나 적으면 기존 것 유지
-            pass
-        print(f"  - {date} 변동 없음 ({new_count:,}건)")
-        return False
+
+    # 새 수집이 더 적거나 같음 → collect가 덮어쓴 것을 원본으로 복원 (data/ + 아카이브)
+    if old_out_bytes is not None:
+        out_file.write_bytes(old_out_bytes)
+    if old_arch_bytes is not None and arch_file.exists():
+        arch_file.write_bytes(old_arch_bytes)
+    print(f"  - {date} 변동 없음 ({new_count:,}건) — 기존 데이터 유지")
+    return False
 
 
 def main():

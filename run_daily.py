@@ -33,11 +33,12 @@ def main():
     print(f"{'='*60}\n")
 
     # Step 0: 공판장 정산 지연 보정 (D-1, D-2 재수집)
-    # 공판장(농협/원협)은 청과법인보다 정산 업로드가 1~2일 늦음
-    print("[0/5] 공판장 정산 보정 (D-1, D-2)")
+    # 공판장(농협/원협)은 청과법인보다 정산 업로드가 3일 이상 늦는 경우가 있음
+    # → 윈도우를 D-1~D-5로 확대 (backfill이 안정화된 날은 자동 skip하므로 호출 폭증 X)
+    print("[0/5] 공판장 정산 보정 (D-1 ~ D-5)")
     print("-" * 40)
     backfill_dates = []
-    for delta in [1, 2]:
+    for delta in [1, 2, 3, 4, 5]:
         bf_date = (datetime.strptime(date, "%Y-%m-%d") - timedelta(days=delta)).strftime("%Y-%m-%d")
         backfill_dates.append(bf_date)
     backfilled = []
