@@ -60,7 +60,7 @@ AUCTION_BLOCKS = [
     ("04", frozenset({"기장"}), None, "오준서 경매사"),
     ("91", None, None, "오준서 경매사"),
     # ── 🍎 과일 파트 ──
-    ("06", frozenset({"매실", "복숭아", "블루베리", "살구", "오디", "자두"}), None, "04:30 이기송 부장"),
+    ("06", frozenset({"매실", "복숭아", "보리수", "블루베리", "살구", "오디", "자두"}), None, "04:30 이기송 부장"),
     ("07", frozenset({"대추", "밤", "잣"}), None, "04:30 이기송 부장"),
     ("08", frozenset({"딸기", "멜론", "방울토마토", "토마토"}), None, "04:30 이기송 부장"),
     ("06", frozenset({"곶감", "단감", "떫은감", "포도"}), None, "(김상걸, 차수호) 이사"),
@@ -88,7 +88,8 @@ for _i, _b in enumerate(AUCTION_BLOCKS):
         _LABEL_ORDER[_b[3]] = _i
 
 # 법인(공판장)별 입력 단위·방식이 상이하여 물량/비율 비교 시 주의가 필요한 품목 → * 표시.
-STAR_ITEMS = frozenset({"배추", "얼갈이배추", "열무", "실파", "쪽파"})
+# (배추류 = 공판장 입력 단위·방식 상이 / 보리수 = 국산·수입 혼입 가능, 수입 품목과 겹침 주의)
+STAR_ITEMS = frozenset({"배추", "얼갈이배추", "열무", "실파", "쪽파", "보리수"})
 
 
 def auction_block_index(product, category_code):
@@ -436,7 +437,7 @@ def product_table(sorted_products, product_corp, product_cat):
     </tr></thead><tbody>{rows}</tbody></table>
     <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열, 경매사 블록 내부는 금액 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
     중앙청과·원협노은은 금액·물량 실수치 + 두 법인 비율(금액·물량, 합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.<br>
-    <span class="star">*</span> 표시 품목(배추·얼갈이배추·열무·실파·쪽파 등)은 <strong>법인(공판장)별 입력 단위·방식이 상이</strong>하여 물량·비율 직접 비교 시 주의 요망.</p>"""
+    <span class="star">*</span> 표시 품목 — 배추·얼갈이배추·열무·실파·쪽파: <strong>법인(공판장)별 입력 단위·방식이 상이</strong> / 보리수: <strong>국산·수입 혼입 가능(수입 품목과 겹침)</strong> → 물량·비율 직접 비교 시 주의 요망.</p>"""
 
 
 CSS = """<style>
@@ -501,6 +502,18 @@ def generate_html(start, end, last_day, range_agg, day_agg, product_data, days, 
         title = f"{start.year}년 {start.month}월 대전 도매시장 정산 보고서"
         subtitle = (f"기간: {period} (정산 완료일 기준) | 영업 {days}일 | 생성: {now}<br>"
                     "출처: 농산물유통정보(aT) 정산정보 API | 4법인: 대전중앙청과·원협노은·대전청과·농협대전")
+        # 공판장 5/1~5/8 정산 자료 중복 이관 오류 주의 (태은이 도메인 확인, 2026-06-04).
+        # 누계 기간이 2026-05-01~05-08과 겹칠 때만 표시 (6월 등 다른 달엔 미표시).
+        dupe_warn = ""
+        if start <= date(2026, 5, 8) and end >= date(2026, 5, 1):
+            dupe_warn = (
+                '<div style="background:#fff3f3;border:2px solid #d32f2f;border-radius:6px;'
+                'padding:12px 16px;margin:12px 0;color:#b71c1c;font-size:11pt;line-height:1.65;">'
+                '<strong>⚠️ 5월 누계 데이터 주의 — 공판장 정산 자료 중복 오류</strong><br>'
+                '공판장에서 <strong>2026년 5월 1일 ~ 5월 8일</strong> 기간의 정산 자료를 '
+                '<strong>중복 이관</strong>하여, 해당 기간 4법인 물량·금액이 실제보다 '
+                '<strong>과대 계상</strong>되어 있습니다. 아래 5월 누계 수치는 이 점을 감안하여 '
+                '<strong>참고용</strong>으로 확인 바랍니다.</div>')
         body = f"""<p class="note" style="text-align:center;color:#d32f2f;">
 ※ 공판장(원협노은·농협대전) 정산 2~3일 지연 → 4법인 모두 정산 완료된 마지막 날({last_label})까지 집계</p>
 
@@ -508,6 +521,7 @@ def generate_html(start, end, last_day, range_agg, day_agg, product_data, days, 
 {corp_detail_table(day_agg, f"{last_label} 4법인 정산 (당일)")}
 
 <h2>2. {start.month}월 누계 ({period})</h2>
+{dupe_warn}
 {corp_detail_table(range_agg, f"{start.month}.1~{end.month}.{end.day} 누계 ({days}일)")}
 {two_corp_table(range_agg, "중앙청과 vs 원협노은 (대전노은 시장)")}
 {market_table(range_agg)}
