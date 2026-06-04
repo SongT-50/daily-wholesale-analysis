@@ -67,7 +67,8 @@ def main():
 
     last = cum["last_day"]
     last_label = f"{last.month}월 {last.day}일({WEEKDAYS[last.weekday()]})"
-    all_warn = list(cum["warnings"]) + list(daily["warnings"])
+    # 누계본·일일본이 같은 미배정 품목(예: 보리수)을 각각 경고 → 중복 제거 (순서 유지)
+    all_warn = list(dict.fromkeys(list(cum["warnings"]) + list(daily["warnings"])))
 
     if all_warn:
         warn_html = ('<p style="color:#b71c1c;font-weight:bold;">⚠️ 데이터 검증 경고 '
@@ -87,13 +88,13 @@ def main():
     {warn_html}
     <table border="1" cellpadding="7" style="border-collapse:collapse;font-size:13px;width:100%;">
       <tr style="background:#e3f2fd;"><th>구분</th><th>물량(톤)</th><th>금액(만원)</th><th>품목</th></tr>
-      <tr><td>5월 누계 ({cum['days']}일)</td><td align="right">{fmt_ton(cum['qty_kg'])}</td>
+      <tr><td>{m}월 누계 ({cum['days']}일)</td><td align="right">{fmt_ton(cum['qty_kg'])}</td>
           <td align="right">{fmt_manwon(cum['amount'])}</td><td align="right">{cum['products']}</td></tr>
       <tr><td>{last_label} 당일</td><td align="right">{fmt_ton(daily['qty_kg'])}</td>
           <td align="right">{fmt_manwon(daily['amount'])}</td><td align="right">{daily['products']}</td></tr>
     </table>
     <p style="margin-top:14px;">📎 첨부파일 2개 — 클릭하면 브라우저로 열립니다.<br>
-       &nbsp;&nbsp;① 5월 누계본 &nbsp;②  {last_label} 하루치 단독본</p>
+       &nbsp;&nbsp;① {m}월 누계본 &nbsp;②  {last_label} 하루치 단독본</p>
   </div>
   <div style="padding:14px;background:#eee;border-radius:0 0 8px 8px;font-size:12px;color:#666;">
     출처: 농산물유통정보(aT) 정산정보 API | 4법인: 대전중앙청과·원협노은·대전청과·농협대전<br>
