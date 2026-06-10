@@ -23,6 +23,16 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 from settlement_report import build_report, resolve_auto_end, resolve_report_range, SETTLE_LAG_DAYS
 
+# 로컬 수동 발송 시 .env 자동 로드 (공백 포함 앱비번 shell source 깨짐 방지 — W-44, 2026-06-04 self-obs).
+# GitHub Actions cron은 secrets로 환경변수 주입하므로 .env 없어도 무방.
+try:
+    from dotenv import load_dotenv
+    for _envp in [Path(__file__).parent / ".env", Path(__file__).parent.parent / ".env"]:
+        if _envp.exists():
+            load_dotenv(_envp)
+except ImportError:
+    pass
+
 WEEKDAYS = "월화수목금토일"
 
 
@@ -40,9 +50,19 @@ def _attach_html(msg, path: Path):
 def main():
     parser = argparse.ArgumentParser(description="정산 보고서 2종 HTML 첨부 메일 발송")
     parser.add_argument("--month", default=None, help="YYYY-MM (미지정 시 어제 기준 월)")
+    parser.add_argument("--force-end", default=None,
+                        help="마지막 정산일 강제 지정 (YYYY-MM-DD). 공휴일 등 특정 법인 휴장으로 "
+                             "4법인 완비 불가한 날 수동 발송용 (예: 2026-06-06 현충일 대전청과 미영업)")
     args = parser.parse_args()
 
-    if args.month:
+    force = date.fromisoformat(args.force_end) if args.force_end else None
+
+    if force is not None:
+        # 강제 모드: 누계 = force의 달 1일~force, 마지막 정산일 = force (완비 검증 우회)
+        start = date(force.year, force.month, 1)
+        end = force
+        y, m = force.year, force.month
+    elif args.month:
         y, m = (int(x) for x in args.month.split("-"))
         start = date(y, m, 1)
         # 명시 월 지정 시에도 LAG 컷은 적용 (미완성 발송 방지)
@@ -55,8 +75,8 @@ def main():
 
     print("=" * 60)
     print(f"정산 보고서 2종 생성: {y}-{m:02d}")
-    cum = build_report(start, end)                          # 누계본
-    daily = build_report(cum["last_day"], cum["last_day"])  # 하루치본
+    cum = build_report(start, end, force_last_day=force)                       # 누계본
+    daily = build_report(cum["last_day"], cum["last_day"], force_last_day=cum["last_day"])  # 하루치본
     print("=" * 60)
 
     gmail_addr = os.getenv("GMAIL_ADDRESS", "")

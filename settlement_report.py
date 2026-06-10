@@ -555,9 +555,14 @@ def _resolve_out(out_arg, default_name):
     return BASE_OUT / default_name
 
 
-def build_report(start: date, end: date, out_arg=None):
-    """[start, end] 정산 보고서 1개 생성. stats dict 반환 (메일 본문 요약용)."""
-    last_day = find_last_settled_day(start, end)
+def build_report(start: date, end: date, out_arg=None, force_last_day=None):
+    """[start, end] 정산 보고서 1개 생성. stats dict 반환 (메일 본문 요약용).
+
+    force_last_day 지정 시 4법인 완비 검증(find_last_settled_day)을 건너뛰고
+    그 날을 마지막 정산일로 강제한다. 공휴일 등으로 특정 법인이 휴장해
+    4법인 완비가 영영 불가능한 날을 수동으로 보고할 때 사용 (예: 2026-06-06
+    현충일에 대전청과 미영업 → 3법인으로 6/6 보고). 자동 모드는 항상 None."""
+    last_day = force_last_day or find_last_settled_day(start, end)
     daily = (start == end)
     range_records, days = load_range(start, end)
     range_agg = aggregate(range_records)
@@ -596,14 +601,22 @@ def main():
     parser.add_argument("--out", default=None, help="출력 파일명(미지정 시 settlement_report_시작_to_종료.html)")
     parser.add_argument("--also-daily", action="store_true",
                         help="누계본 생성 후 마지막 정산일 하루치본도 함께 생성")
+    parser.add_argument("--force-end", default=None,
+                        help="마지막 정산일을 4법인 완비 검증 없이 강제 지정 (YYYY-MM-DD). "
+                             "공휴일 등 특정 법인 휴장으로 완비 불가한 날 수동 보고용")
     args = parser.parse_args()
 
-    if args.start is None:
+    force = date.fromisoformat(args.force_end) if args.force_end else None
+
+    if args.start is None and force is None:
         # 인자 없음 → 자동 모드: 기준 월을 '오늘-LAG'의 달로 (월 경계 버그 방지)
         start, end = resolve_report_range()
     else:
-        start = date.fromisoformat(args.start)
-        if args.end:
+        start = date.fromisoformat(args.start) if args.start else date(force.year, force.month, 1)
+        if force is not None:
+            # 강제 모드: find_last_settled_day 우회, 그 날을 마지막 정산일로
+            end = force
+        elif args.end:
             # 명시 지정 시에는 LAG 컷 없이 그 날을 4법인 완비 기준으로만 탐색 (수동 분석용)
             end = find_last_settled_day(start, date.fromisoformat(args.end))
         else:
@@ -611,11 +624,11 @@ def main():
             end = resolve_auto_end(start)
 
     print("=" * 60)
-    stats = build_report(start, end, args.out)
+    stats = build_report(start, end, args.out, force_last_day=force)
 
     if args.also_daily and start != end:
         # 마지막 정산일 하루치 단독본 (--out 미적용, 기본 파일명 사용)
-        build_report(stats["last_day"], stats["last_day"], None)
+        build_report(stats["last_day"], stats["last_day"], None, force_last_day=stats["last_day"])
     print("=" * 60)
 
 
