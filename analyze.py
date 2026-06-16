@@ -1,6 +1,6 @@
 """
 도매시장 일일 분석 리포트 생성기
-수집 데이터(JSON) → Gemini AI 분석 → 마크다운 리포트
+수집 데이터(JSON) → 시세 요약 마크다운 리포트
 
 사용: python analyze.py [--date 2026-03-09]
 """
@@ -12,13 +12,11 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-import httpx
 from dotenv import load_dotenv
 
 sys.stdout.reconfigure(encoding="utf-8")
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DATA_DIR = Path(__file__).parent / "data"
 REPORT_DIR = Path(__file__).parent / "reports"
 
@@ -142,87 +140,9 @@ def summarize_shipment(data: dict) -> str:
     return "\n".join(lines)
 
 
-def analyze_with_gemini(summary: str, date: str, shipment_summary: str = "") -> str:
-    """Gemini API로 분석 리포트 생성"""
-    if not GEMINI_API_KEY:
-        return _fallback_report(summary, date)
-
-    shipment_section = ""
-    if shipment_summary:
-        shipment_section = f"""
-
-## 전자송품장 출하예약 데이터 (내일 출하예정)
-아래는 내일 도매시장에 도착 예정인 출하예약 물량입니다.
-이 데이터를 활용해 '내일 전망' 섹션을 구체적으로 작성하세요.
-- 출하예약 물량이 많은 품목 → 가격 하락 압력
-- 출하예약 물량이 적은 품목 → 가격 상승 가능
-- 오늘 거래량 대비 내일 출하예약량 비교
-
-{shipment_summary}
-"""
-
-    prompt = f"""당신은 한국 농산물 도매시장 전문 분석가입니다.
-아래 경매 데이터를 분석해서 실용적인 일일 리포트를 작성하세요.
-
-## 분석 요청
-- 날짜: {date}
-- 대상: 전국 도매시장 경매 데이터 (12개 시장, 38개 법인)
-
-## 중요 용어
-- 정산일(trd_clcln_ymd): 경매 후 취소건 제외, 실제 확정된 거래 날짜
-- 단가(scsbd_prc): 낙찰 가격 (단위중량당 원)
-- 법인(corp_nm): 경매를 진행한 도매법인 (중간유통)
-- 전자송품장: 산지에서 사전 등록한 출하예약 정보 (내일 반입 예정 물량)
-
-## 리포트 구성
-1. **오늘의 핵심 요약** (3줄 이내)
-2. **주요 품목 시세** (가격 동향, 특이사항, 전일대비 가능하면)
-3. **시장별 특징** (거래량 많은 시장, 특이 동향)
-4. **도매법인 동향** (활발한 법인, 특이사항)
-5. **주목할 점** (계절 요인, 수급 변화 등)
-6. **내일 전망** (출하예약 데이터 기반, 구체적 품목별 수급 예측)
-
-## 규칙
-- 한국어로 작성, 도매시장 업계 용어 사용
-- 숫자는 콤마 포함 (예: 15,000원/10kg)
-- 추측이면 "~로 보입니다" 표현 사용
-- 짧고 실용적으로 — 새벽에 읽을 실무자 대상
-- 출하예약 데이터가 있으면 내일 전망을 반드시 데이터 기반으로 작성
-
-## 오늘 경매 데이터
-{summary}
-{shipment_section}"""
-
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-        resp = httpx.post(
-            url,
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": 2000,
-                },
-            },
-            timeout=60.0,
-        )
-        if resp.status_code != 200:
-            print(f"Gemini API 오류: {resp.status_code}")
-            return _fallback_report(summary, date)
-
-        result = resp.json()
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
-        return text
-    except Exception as e:
-        print(f"Gemini 분석 실패: {e}")
-        return _fallback_report(summary, date)
-
-
-def _fallback_report(summary: str, date: str) -> str:
-    """Gemini 실패 시 기본 리포트"""
+def _build_report(summary: str, date: str) -> str:
+    """경매 데이터 시세 요약 리포트 (전국 도매시장 기반)"""
     return f"""# 도매시장 일일 리포트 ({date})
-
-> Gemini API를 사용할 수 없어 원본 데이터 요약만 제공합니다.
 
 {summary}
 """
@@ -329,19 +249,8 @@ def generate_report(date: str, shipment_date: str | None = None) -> str | None:
     summary = summarize_data(data)
     print(f"요약 생성 완료 ({len(summary)} chars)")
 
-    # 출하예약 데이터 로드
-    shipment_summary = ""
-    if shipment_date:
-        shipment_data = load_shipment(shipment_date)
-        if shipment_data and shipment_data.get("total_collected", 0) > 0:
-            shipment_summary = summarize_shipment(shipment_data)
-            print(f"출하예약 요약 생성 완료 ({shipment_date}, {shipment_data['total_collected']:,}건)")
-        else:
-            print(f"출하예약 데이터 없음 ({shipment_date})")
-
-    # AI 분석
-    print("Gemini 분석 중...")
-    report = analyze_with_gemini(summary, date, shipment_summary)
+    # 시세 요약 리포트 생성 (전국 도매시장 경매 데이터 기반)
+    report = _build_report(summary, date)
 
     # 대전중앙청과 전용 섹션 추가
     djc = _djc_report(data, date)

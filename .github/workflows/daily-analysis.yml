@@ -30,7 +30,6 @@ jobs:
       - name: Run daily analysis
         env:
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           BASE_DATE="${{ github.event.inputs.date || '' }}"
           if [ -z "$BASE_DATE" ]; then
