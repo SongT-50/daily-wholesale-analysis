@@ -384,19 +384,40 @@ def market_table(agg):
         <th>점유율(물량)</th><th>점유율(금액)</th></tr></thead><tbody>{rows}</tbody></table>"""
 
 
+def _auc_subtotal_row(auc_label, sj_a, sj_q, sw_a, sw_q):
+    """경매사 블록 소계 행 HTML."""
+    return (
+        f'<tr class="auc-subtotal">'
+        f'<td class="cat" colspan="2">소계 ({html_mod.escape(auc_label)})</td>'
+        f'<td class="num hl">{fmt_manwon(sj_a)}</td><td class="num hl">{fmt_ton(sj_q)}</td>'
+        f'<td class="num won">{fmt_manwon(sw_a)}</td><td class="num won">{fmt_ton(sw_q)}</td>'
+        f'<td class="num rt">{ratio_pct(sj_a, sw_a)}</td>'
+        f'<td class="num rt">{ratio_pct(sj_q, sw_q)}</td>'
+        f'<td colspan="4" class="num" style="color:#999;font-size:8.5pt;text-align:center;">—</td>'
+        f'</tr>'
+    )
+
+
 def product_table(sorted_products, product_corp, product_cat):
     """품목별 표 (경매 진행 순서, 블록 내부 금액순). 중앙청과·원협노은은 금액(만원)·물량(톤) 실수치 +
     중앙:원협 비율(금액·물량, 55:45 형태). 4법인 전체는 물량 점유율(%)로 표기.
-    (태은이 5/30 요청: 금액·물량 순서 + 경매사 블록 내부 금액순 정렬)"""
+    (태은이 5/30 요청: 금액·물량 순서 + 경매사 블록 내부 금액순 정렬)
+    (태은이 6/19 요청: 경매사 블록 끝마다 중앙·원협 금액·물량 소계 행 추가)"""
     J, W, DJ, NH = "25000301", "25000302", "25000102", "25000101"
     rows = ""
     prev_part = None
     prev_auc = None
+    # 경매사 블록 소계 누산기
+    sj_a = sj_q = sw_a = sw_q = 0
     for product, totals in sorted_products:
         cc, _ = product_cat.get(product, ("", ""))
         bidx = auction_block_index(product, cc)
         part = "fruit" if bidx >= FRUIT_START_BLOCK else "veg"
         if part != prev_part:
+            # 파트 전환 전 직전 경매사 소계 삽입
+            if prev_auc is not None:
+                rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
+                sj_a = sj_q = sw_a = sw_q = 0
             plabel = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
             rows += f'<tr class="part-divider"><td colspan="12">{plabel}</td></tr>'
             prev_part = part
@@ -404,12 +425,19 @@ def product_table(sorted_products, product_corp, product_cat):
         auc = (AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS)
                else "🆕 미배정 (신규·계절 품목 — 경매사 지정 필요)")
         if auc != prev_auc:
+            # 경매사 전환 전 직전 경매사 소계 삽입
+            if prev_auc is not None:
+                rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
+                sj_a = sj_q = sw_a = sw_q = 0
             ac = "auc-row unassigned" if "미배정" in auc else "auc-row"
             rows += f'<tr class="{ac}"><td colspan="12">↳ {html_mod.escape(auc)}</td></tr>'
             prev_auc = auc
         tq = totals["qty_kg"]
         j = product_corp[product][J]; w = product_corp[product][W]
         dj = product_corp[product][DJ]; nh = product_corp[product][NH]
+        # 소계 누산
+        sj_a += j['amount']; sj_q += j['qty_kg']
+        sw_a += w['amount']; sw_q += w['qty_kg']
         def pq(d): return (d["qty_kg"] / tq * 100) if tq else 0
         rows += f"""<tr>
             <td class="cat">{html_mod.escape(cc)}</td>
@@ -420,6 +448,9 @@ def product_table(sorted_products, product_corp, product_cat):
             <td class="num rt">{ratio_pct(j['qty_kg'], w['qty_kg'])}</td>
             <td class="num hl">{fmt_pct(pq(j))}</td><td class="num won">{fmt_pct(pq(w))}</td>
             <td class="num">{fmt_pct(pq(dj))}</td><td class="num">{fmt_pct(pq(nh))}</td></tr>"""
+    # 마지막 경매사 소계
+    if prev_auc is not None:
+        rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
     return f"""<h3>품목별 정산 (경매 진행 순서 · 전 품목 {len(sorted_products)}개) — 중앙청과·원협노은 강조</h3>
     <table class="product-table"><thead>
     <tr>
@@ -472,6 +503,10 @@ tr.part-divider td { background:#1565c0; color:#fff; font-weight:700; font-size:
 tr.auc-row td { background:#eef4fb; color:#0d47a1; font-weight:600; font-size:9.5pt;
                 text-align:left; padding:4px 10px; border-top:1.5px solid #90caf9; }
 tr.auc-row.unassigned td { background:#fff3f3; color:#b71c1c; border-top:1.5px solid #d32f2f; }
+tr.auc-subtotal td { background:#dce9f7; font-weight:700; border-top:2px solid #4a90d9;
+                     border-bottom:2px solid #4a90d9; font-size:9.5pt; }
+tr.auc-subtotal td.hl { background:#c8daf0; }
+tr.auc-subtotal td.won { background:#d4e9d8; }
 .star { color:#d32f2f; font-weight:700; }
 .note { font-size:9pt; color:#777; margin-top:4px; }
 .footer { margin-top:24px; padding-top:8px; border-top:1px solid #ddd;
