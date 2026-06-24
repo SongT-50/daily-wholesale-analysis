@@ -394,7 +394,7 @@ def _auc_subtotal_row(auc_label, sj_a, sj_q, sw_a, sw_q):
         f'<td class="num won">{fmt_manwon(sw_a)}</td><td class="num won">{fmt_ton(sw_q)}</td>'
         f'<td class="num rt">{ratio_pct(sj_a, sw_a)}</td>'
         f'<td class="num rt">{ratio_pct(sj_q, sw_q)}</td>'
-        f'<td colspan="4" class="num" style="color:#999;font-size:8.5pt;text-align:center;">—</td>'
+        f'<td colspan="8" class="num" style="color:#999;font-size:8.5pt;text-align:center;">—</td>'
         f'</tr>'
     )
 
@@ -420,7 +420,7 @@ def product_table(sorted_products, product_corp, product_cat):
                 rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
                 sj_a = sj_q = sw_a = sw_q = 0
             plabel = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
-            rows += f'<tr class="part-divider"><td colspan="12">{plabel}</td></tr>'
+            rows += f'<tr class="part-divider"><td colspan="16">{plabel}</td></tr>'
             prev_part = part
             prev_auc = None
         auc = (AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS)
@@ -431,15 +431,16 @@ def product_table(sorted_products, product_corp, product_cat):
                 rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
                 sj_a = sj_q = sw_a = sw_q = 0
             ac = "auc-row unassigned" if "미배정" in auc else "auc-row"
-            rows += f'<tr class="{ac}"><td colspan="12">↳ {html_mod.escape(auc)}</td></tr>'
+            rows += f'<tr class="{ac}"><td colspan="16">↳ {html_mod.escape(auc)}</td></tr>'
             prev_auc = auc
-        tq = totals["qty_kg"]
+        tq = totals["qty_kg"]; ta = totals["amount"]
         j = product_corp[product][J]; w = product_corp[product][W]
         dj = product_corp[product][DJ]; nh = product_corp[product][NH]
         # 소계 누산
         sj_a += j['amount']; sj_q += j['qty_kg']
         sw_a += w['amount']; sw_q += w['qty_kg']
         def pq(d): return (d["qty_kg"] / tq * 100) if tq else 0
+        def pa(d): return (d["amount"] / ta * 100) if ta else 0
         rows += f"""<tr>
             <td class="cat">{html_mod.escape(cc)}</td>
             <td>{html_mod.escape(product)}{'<span class="star">*</span>' if product in STAR_ITEMS else ''}</td>
@@ -447,6 +448,8 @@ def product_table(sorted_products, product_corp, product_cat):
             <td class="num won">{fmt_manwon(w['amount'])}</td><td class="num won">{fmt_ton(w['qty_kg'])}</td>
             <td class="num rt">{ratio_pct(j['amount'], w['amount'])}</td>
             <td class="num rt">{ratio_pct(j['qty_kg'], w['qty_kg'])}</td>
+            <td class="num hl">{fmt_pct(pa(j))}</td><td class="num won">{fmt_pct(pa(w))}</td>
+            <td class="num">{fmt_pct(pa(dj))}</td><td class="num">{fmt_pct(pa(nh))}</td>
             <td class="num hl">{fmt_pct(pq(j))}</td><td class="num won">{fmt_pct(pq(w))}</td>
             <td class="num">{fmt_pct(pq(dj))}</td><td class="num">{fmt_pct(pq(nh))}</td></tr>"""
     # 마지막 경매사 소계
@@ -459,6 +462,7 @@ def product_table(sorted_products, product_corp, product_cat):
         <th colspan="2" class="hl">중앙청과 ★</th>
         <th colspan="2" class="won-h">원협노은</th>
         <th colspan="2">중앙:원협 비율</th>
+        <th colspan="4">금액 점유율 (4법인)</th>
         <th colspan="4">물량 점유율 (4법인)</th>
     </tr>
     <tr>
@@ -466,9 +470,10 @@ def product_table(sorted_products, product_corp, product_cat):
         <th class="won-h">금액(만원)</th><th class="won-h">물량(톤)</th>
         <th>금액</th><th>물량</th>
         <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
+        <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
     </tr></thead><tbody>{rows}</tbody></table>
     <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열, 경매사 블록 내부는 금액 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
-    중앙청과·원협노은은 금액·물량 실수치 + 두 법인 비율(금액·물량, 합 100, 예 55:45). 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.<br>
+    중앙청과·원협노은은 금액·물량 실수치 + 두 법인 비율(금액·물량, 합 100, 예 55:45). 금액 점유율 = 4법인 금액 합계 대비 / 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중(중앙·원협·대전청과·농협대전, 각 합 100).<br>
     <span class="star">*</span> 표시 품목 — 배추·얼갈이배추·열무·실파·쪽파: <strong>법인(공판장)별 입력 단위·방식이 상이</strong> / 보리수: <strong>국산·수입 혼입 가능(수입 품목과 겹침)</strong> → 물량·비율 직접 비교 시 주의 요망.</p>"""
 
 
