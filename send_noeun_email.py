@@ -33,9 +33,15 @@ def main():
     end = date.fromisoformat(args.end) if args.end else sr.resolve_report_range()[1]
 
     html, meta = bn.generate_html(end)
-    outdir = os.path.join(bn.MONET, 'presentations', f'noeun-market-report-{end.isoformat()}')
-    os.makedirs(outdir, exist_ok=True)
-    path = os.path.join(outdir, 'index.html')
+    # 저장 경로: NOEUN_OUT_DIR(GitHub Actions 등) 지정 시 그곳, 아니면 로컬 presentations 박제
+    out_base = os.getenv('NOEUN_OUT_DIR')
+    if out_base:
+        os.makedirs(out_base, exist_ok=True)
+        path = os.path.join(out_base, f'noeun_{end.isoformat()}.html')
+    else:
+        outdir = os.path.join(bn.MONET, 'presentations', f'noeun-market-report-{end.isoformat()}')
+        os.makedirs(outdir, exist_ok=True)
+        path = os.path.join(outdir, 'index.html')
     with open(path, 'w', encoding='utf-8') as f:
         f.write(html)
 
