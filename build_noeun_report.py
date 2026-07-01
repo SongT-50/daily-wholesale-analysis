@@ -248,10 +248,123 @@ def generate_html(end_date):
                       ja=ja, wa=wa, amt25=amt25, vol25=vol25)
 
 
+def agg_auctioneer_detail(records):
+    """경매사 라벨별: 중앙/원협 합계(corp) + 품목별 중앙/원협 [qty,amt](prod) + 표시순서."""
+    corp = defaultdict(lambda: {J: [0.0, 0.0], W: [0.0, 0.0]})
+    prod = defaultdict(lambda: defaultdict(lambda: {J: [0.0, 0.0], W: [0.0, 0.0]}))
+    order = {}
+    for r in records:
+        code = r.get('corp_code')
+        if code not in (J, W):
+            continue
+        product = r.get('product', '기타') or '기타'
+        cc = (r.get('category_code') or '').strip()
+        bidx = sr.auction_block_index(product, cc)
+        label = sr.AUCTION_BLOCKS[bidx][3] if bidx < len(sr.AUCTION_BLOCKS) else "미배정"
+        if label not in order:
+            order[label] = sr.auction_label_order(product, cc)
+        q = r.get('total_qty', 0) or 0
+        a = r.get('total_amount', 0) or 0
+        corp[label][code][0] += q; corp[label][code][1] += a
+        prod[label][product][code][0] += q; prod[label][product][code][1] += a
+    return corp, prod, order
+
+
+def losing_products(items):
+    """품목dict → 원협에 금액으로 진 품목(품목 많으면 물량 상위 15개 범위 내), 많이 지는 순."""
+    ranked = sorted(items.items(), key=lambda x: -(x[1][J][0] + x[1][W][0]))
+    scope = ranked[:15] if len(ranked) > 15 else ranked
+    losing = [(p, d) for p, d in scope if d[J][1] < d[W][1]]
+    losing.sort(key=lambda x: x[1][J][1] - x[1][W][1])
+    return losing
+
+
+def generate_manager_html(end):
+    """관리자용 — 원협에 지는 품목 원인 분석 (강/약배지·작년대비 제거, 진품목·당일물량 추가)."""
+    start = date(end.year, 6, 1)
+    recs, days = sr.load_range(start, end)
+    corp, prod, order = agg_auctioneer_detail(recs)
+    recs_d, _ = sr.load_range(end, end)
+    corp_d, _, _ = agg_auctioneer_detail(recs_d)
+
+    jq = sum(v[J][0] for v in corp.values()); ja = sum(v[J][1] for v in corp.values())
+    wq = sum(v[W][0] for v in corp.values()); wa = sum(v[W][1] for v in corp.values())
+    vol = jq / (jq + wq) * 100 if (jq + wq) else 0
+    amt = ja / (ja + wa) * 100 if (ja + wa) else 0
+    djq = sum(v[J][0] for v in corp_d.values()); dwq = sum(v[W][0] for v in corp_d.values())
+    dvol = djq / (djq + dwq) * 100 if (djq + dwq) else 0
+
+    labels = sorted(order, key=lambda x: order[x])
+    rows = ''
+    for lb in labels:
+        c = corp[lb]; js, ws = c[J], c[W]
+        denom = js[1] + ws[1]
+        sh = js[1] / denom * 100 if denom else 0
+        clean = clean_label(lb)
+        rows += (f'<tr><td class="lbl">{clean}</td>'
+                 f'<td class="colj">{f0(js[0])}</td><td class="colj">{f0(js[1])}</td>'
+                 f'<td class="colw">{f0(ws[0])}</td><td class="colw">{f0(ws[1])}</td>'
+                 f'<td class="pct {pcls(sh)}">{sh:.1f}%</td></tr>')
+        losing = losing_products(prod[lb])
+        if losing:
+            chips = ' &nbsp;/&nbsp; '.join(
+                f'<b>{p}</b> 금액 중{d[J][1]/1e4:,.0f}:원{d[W][1]/1e4:,.0f}만 · 물량 중{d[J][0]/1000:.1f}:원{d[W][0]/1000:.1f}t'
+                for p, d in losing)
+            rows += (f'<tr class="losing"><td colspan="6">'
+                     f'❌ <b>원협에 진 품목 {len(losing)}개</b>(금액 기준): {chips}</td></tr>')
+
+    today = date.today()
+    html = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>노은도매시장 경매사별 열세 품목 분석 (관리자용)</title>
+<style>{CSS}
+tr.losing td{{background:#fdeceb;color:#b91c1c;font-size:9px;text-align:left;padding:4px 10px;line-height:1.6}}
+tr.losing b{{color:#8a1a12}}</style></head><body><div class="page">
+  <div class="head">
+    <div><h1>노은도매시장 경매사별 열세 품목 분석</h1>
+      <div class="legend">관리자용 · 원협노은에 <b style="color:#b91c1c">지는 품목</b> 원인 분석 &nbsp;·&nbsp;
+        <span class="cj">■ 중앙청과(우리)</span> <span class="cw">■ 원협노은</span></div></div>
+    <div class="meta"><b>{end.year}년 {end.month}월 누계</b> ({start.month}/{start.day} ~ {end.month}/{end.day}, {days}영업일)<br>
+      작성 {today.month}/{today.day} · 단위: kg · 원<br>출처: 도매시장통합 정산자료</div>
+  </div>
+  <div class="dash">
+    <div class="dash-h">📌 물량 점유율 한눈에 — 누계 · 당일</div>
+    <div class="kpis">
+      <div><div class="kpi-t"><span>이달 누계 물량</span><span class="win">중앙 {'▲' if vol>=50 else '▽'} {vol:.1f}%</span></div>
+        <div class="bar"><span class="bj" style="width:{vol:.1f}%">중앙 {vol:.1f}%</span><span class="bw" style="width:{100-vol:.1f}%">원협 {100-vol:.1f}%</span></div></div>
+      <div><div class="kpi-t"><span>{end.month}/{end.day} 당일 물량</span><span class="win">중앙 {'▲' if dvol>=50 else '▽'} {dvol:.1f}%</span></div>
+        <div class="bar"><span class="bj" style="width:{dvol:.1f}%">중앙 {dvol:.1f}%</span><span class="bw" style="width:{100-dvol:.1f}%">원협 {100-dvol:.1f}%</span></div></div>
+    </div>
+  </div>
+  <section>
+    <div class="stitle">① 경매사별 거래현황 + 원협에 진 품목 <small>금액점유% = 경매사별 우리 비중 / 빨간 줄 = 원협에 진 품목(금액 기준)</small></div>
+    <table><thead>
+      <tr><th style="width:20%">경매사 (담당)</th>
+        <th class="grp">중앙 물량(kg)</th><th class="grp">중앙 금액(원)</th>
+        <th class="grpw">원협 물량(kg)</th><th class="grpw">원협 금액(원)</th>
+        <th style="width:9%">중앙<br>금액점유</th></tr>
+    </thead><tbody>{rows}</tbody></table>
+    <div class="note">＊ 서병수·김선우 부장 등 품목 많은 경매사는 물량 상위 15개 중에서만 '진 품목' 표시(엽채류 전량 제외). 과일 파트는 대체로 우세.</div>
+  </section>
+  <section>
+    <div class="stitle">② 물량 점유 — 당일 + 이달 누계 <small>(작년 대비 대신)</small></div>
+    <table class="cmp"><thead><tr><th style="width:30%">구분</th><th>중앙청과 (우리)</th><th>원협노은</th></tr></thead><tbody>
+      <tr><td class="lbl">{end.month}/{end.day} 당일 물량</td><td class="vj">{djq/1000:.1f}톤 ({dvol:.1f}%)</td><td>{dwq/1000:.1f}톤 ({100-dvol:.1f}%)</td></tr>
+      <tr><td class="lbl">{end.month}월 누계 물량</td><td class="vj">{jq/1000:.1f}톤 ({vol:.1f}%)</td><td>{wq/1000:.1f}톤 ({100-vol:.1f}%)</td></tr>
+    </tbody></table>
+  </section>
+  <div class="foot"><div>대전중앙청과 · 노은도매시장 경매사별 열세 품목 분석 (관리자용, 자동 생성)</div>
+    <div><span style="color:#b91c1c;font-weight:700">빨간 줄 = 원협에 진 품목</span> — 원인 분석 대상</div></div>
+</div></body></html>"""
+    return html, dict(start=start, end=end, days=days, vol=vol, dvol=dvol,
+                      jq=jq, wq=wq, djq=djq, dwq=dwq)
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--end')
     ap.add_argument('--verify', action='store_true')
+    ap.add_argument('--manager', action='store_true')
     args = ap.parse_args()
 
     if args.verify:
@@ -264,6 +377,22 @@ if __name__ == '__main__':
         sys.exit(0)
 
     end = date.fromisoformat(args.end) if args.end else sr.resolve_report_range()[1]
+
+    if args.manager:
+        html, meta = generate_manager_html(end)
+        outdir = os.path.join(MONET, 'presentations', f'noeun-manager-report-{end.isoformat()}')
+        os.makedirs(outdir, exist_ok=True)
+        outpath = os.path.join(outdir, 'index.html')
+        with open(outpath, 'w', encoding='utf-8') as f:
+            f.write(html)
+        dl = os.path.join('C:/Users/samsung/Downloads', f'노은도매시장_관리자용_열세품목_{end.isoformat()}.html')
+        with open(dl, 'w', encoding='utf-8') as f:
+            f.write(html)
+        print(f"✅ 관리자용(열세품목) 보고서: {end.year}년 {end.month}월 누계 · 누계 물량 {meta['vol']:.1f}% / 당일 {meta['dvol']:.1f}%")
+        print(f"   {outpath}")
+        print(f"   {dl}")
+        sys.exit(0)
+
     html, meta = generate_html(end)
     outdir = os.path.join(MONET, 'presentations', f'noeun-market-report-{end.isoformat()}')
     os.makedirs(outdir, exist_ok=True)
