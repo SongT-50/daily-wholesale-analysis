@@ -402,46 +402,33 @@ def _auc_subtotal_row(auc_label, sj_a, sj_q, sw_a, sw_q):
 def product_table(sorted_products, product_corp, product_cat):
     """품목별 표 (경매 진행 순서, 블록 내부 금액순). 중앙청과·원협노은은 금액(만원)·물량(톤) 실수치 +
     중앙:원협 비율(금액·물량, 55:45 형태). 4법인 전체는 물량 점유율(%)로 표기.
-    (태은이 5/30 요청: 금액·물량 순서 + 경매사 블록 내부 금액순 정렬)
-    (태은이 6/19 요청: 경매사 블록 끝마다 중앙·원협 금액·물량 소계 행 추가)"""
+    (태은이 5/30: 금액·물량 순서 + 경매사 블록 내부 금액순 / 6/19: 경매사 블록 소계 행)
+    (태은이 7/1: 품목 16개 이상 경매사 블록은 물량 많은 순 상위 15개만 표시 + 나머지 '기타'로 합산.
+     서병수·김선우 부장(엽채류 76품목)·오준서 경매사 등 압축. 소계·합계는 전 품목 반영해 정합 유지.)"""
     J, W, DJ, NH = "25000301", "25000302", "25000102", "25000101"
-    rows = ""
-    prev_part = None
-    prev_auc = None
-    # 경매사 블록 소계 누산기
-    sj_a = sj_q = sw_a = sw_q = 0
+    ETC_LIMIT = 15
+    UNASSIGNED = "🆕 미배정 (신규·계절 품목 — 경매사 지정 필요)"
+
+    # 경매사별 그룹화 (sorted_products가 이미 경매 순서 → 첫 등장 순서 유지)
+    groups = []
+    gi = {}
     for product, totals in sorted_products:
         cc, _ = product_cat.get(product, ("", ""))
         bidx = auction_block_index(product, cc)
         part = "fruit" if bidx >= FRUIT_START_BLOCK else "veg"
-        if part != prev_part:
-            # 파트 전환 전 직전 경매사 소계 삽입
-            if prev_auc is not None:
-                rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
-                sj_a = sj_q = sw_a = sw_q = 0
-            plabel = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
-            rows += f'<tr class="part-divider"><td colspan="16">{plabel}</td></tr>'
-            prev_part = part
-            prev_auc = None
-        auc = (AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS)
-               else "🆕 미배정 (신규·계절 품목 — 경매사 지정 필요)")
-        if auc != prev_auc:
-            # 경매사 전환 전 직전 경매사 소계 삽입
-            if prev_auc is not None:
-                rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
-                sj_a = sj_q = sw_a = sw_q = 0
-            ac = "auc-row unassigned" if "미배정" in auc else "auc-row"
-            rows += f'<tr class="{ac}"><td colspan="16">↳ {html_mod.escape(auc)}</td></tr>'
-            prev_auc = auc
+        auc = AUCTION_BLOCKS[bidx][3] if bidx < len(AUCTION_BLOCKS) else UNASSIGNED
+        if auc not in gi:
+            gi[auc] = len(groups)
+            groups.append([auc, part, []])
+        groups[gi[auc]][2].append((product, totals, cc))
+
+    def prod_row(product, totals, cc):
         tq = totals["qty_kg"]; ta = totals["amount"]
         j = product_corp[product][J]; w = product_corp[product][W]
         dj = product_corp[product][DJ]; nh = product_corp[product][NH]
-        # 소계 누산
-        sj_a += j['amount']; sj_q += j['qty_kg']
-        sw_a += w['amount']; sw_q += w['qty_kg']
-        def pq(d): return (d["qty_kg"] / tq * 100) if tq else 0
-        def pa(d): return (d["amount"] / ta * 100) if ta else 0
-        rows += f"""<tr>
+        pq = lambda d: (d["qty_kg"] / tq * 100) if tq else 0
+        pa = lambda d: (d["amount"] / ta * 100) if ta else 0
+        return f"""<tr>
             <td class="cat">{html_mod.escape(cc)}</td>
             <td>{html_mod.escape(product)}{'<span class="star">*</span>' if product in STAR_ITEMS else ''}</td>
             <td class="num hl">{fmt_manwon(j['amount'])}</td><td class="num hl">{fmt_ton(j['qty_kg'])}</td>
@@ -452,10 +439,58 @@ def product_table(sorted_products, product_corp, product_cat):
             <td class="num">{fmt_pct(pa(dj))}</td><td class="num">{fmt_pct(pa(nh))}</td>
             <td class="num hl">{fmt_pct(pq(j))}</td><td class="num won">{fmt_pct(pq(w))}</td>
             <td class="num">{fmt_pct(pq(dj))}</td><td class="num">{fmt_pct(pq(nh))}</td></tr>"""
-    # 마지막 경매사 소계
-    if prev_auc is not None:
-        rows += _auc_subtotal_row(prev_auc, sj_a, sj_q, sw_a, sw_q)
-    return f"""<h3>품목별 정산 (경매 진행 순서 · 전 품목 {len(sorted_products)}개) — 중앙청과·원협노은 강조</h3>
+
+    rows = ""; prev_part = None; shown = 0
+    for auc, part, items in groups:
+        if part != prev_part:
+            plabel = "🍎 과일 파트 (04:30~)" if part == "fruit" else "🥬 채소 파트 (00:00~)"
+            rows += f'<tr class="part-divider"><td colspan="16">{plabel}</td></tr>'
+            prev_part = part
+        ac = "auc-row unassigned" if "미배정" in auc else "auc-row"
+        rows += f'<tr class="{ac}"><td colspan="16">↳ {html_mod.escape(auc)}</td></tr>'
+
+        # 품목 16개 이상 = 물량 많은 순 상위 15개 + 나머지 '기타' 합산
+        if len(items) > ETC_LIMIT:
+            items_sorted = sorted(items, key=lambda x: -x[1]["qty_kg"])
+            show, etc = items_sorted[:ETC_LIMIT], items_sorted[ETC_LIMIT:]
+        else:
+            show, etc = items, []
+
+        sj_a = sj_q = sw_a = sw_q = 0
+        for product, totals, cc in show:
+            rows += prod_row(product, totals, cc)
+            sj_a += product_corp[product][J]['amount']; sj_q += product_corp[product][J]['qty_kg']
+            sw_a += product_corp[product][W]['amount']; sw_q += product_corp[product][W]['qty_kg']
+            shown += 1
+
+        if etc:
+            agg = {c: {'amount': 0.0, 'qty_kg': 0.0} for c in (J, W, DJ, NH)}
+            etq = eta = 0.0
+            for product, totals, cc in etc:
+                etq += totals['qty_kg']; eta += totals['amount']
+                for c in (J, W, DJ, NH):
+                    agg[c]['amount'] += product_corp[product][c]['amount']
+                    agg[c]['qty_kg'] += product_corp[product][c]['qty_kg']
+            sj_a += agg[J]['amount']; sj_q += agg[J]['qty_kg']
+            sw_a += agg[W]['amount']; sw_q += agg[W]['qty_kg']
+            epq = lambda d: (d['qty_kg'] / etq * 100) if etq else 0
+            epa = lambda d: (d['amount'] / eta * 100) if eta else 0
+            rows += f"""<tr style="color:#555;background:#fafafa;">
+            <td class="cat">—</td>
+            <td><em>기타 ({len(etc)}개 품목 합산)</em></td>
+            <td class="num hl">{fmt_manwon(agg[J]['amount'])}</td><td class="num hl">{fmt_ton(agg[J]['qty_kg'])}</td>
+            <td class="num won">{fmt_manwon(agg[W]['amount'])}</td><td class="num won">{fmt_ton(agg[W]['qty_kg'])}</td>
+            <td class="num rt">{ratio_pct(agg[J]['amount'], agg[W]['amount'])}</td>
+            <td class="num rt">{ratio_pct(agg[J]['qty_kg'], agg[W]['qty_kg'])}</td>
+            <td class="num hl">{fmt_pct(epa(agg[J]))}</td><td class="num won">{fmt_pct(epa(agg[W]))}</td>
+            <td class="num">{fmt_pct(epa(agg[DJ]))}</td><td class="num">{fmt_pct(epa(agg[NH]))}</td>
+            <td class="num hl">{fmt_pct(epq(agg[J]))}</td><td class="num won">{fmt_pct(epq(agg[W]))}</td>
+            <td class="num">{fmt_pct(epq(agg[DJ]))}</td><td class="num">{fmt_pct(epq(agg[NH]))}</td></tr>"""
+
+        rows += _auc_subtotal_row(auc, sj_a, sj_q, sw_a, sw_q)
+
+    total_prods = len(sorted_products)
+    return f"""<h3>품목별 정산 (경매 진행 순서 · 표시 {shown}개 + 기타 합산 / 전 품목 {total_prods}개) — 중앙청과·원협노은 강조</h3>
     <table class="product-table"><thead>
     <tr>
         <th rowspan="2">부류</th><th rowspan="2">품목</th>
@@ -472,8 +507,8 @@ def product_table(sorted_products, product_corp, product_cat):
         <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
         <th class="hl">중앙</th><th class="won-h">원협</th><th>대전청과</th><th>농협대전</th>
     </tr></thead><tbody>{rows}</tbody></table>
-    <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열, 경매사 블록 내부는 금액 많은 순. 같은 부류가 경매사별로 나뉘면 부류번호가 여러 번 나옴(데이터·부류번호는 그대로).
-    중앙청과·원협노은은 금액·물량 실수치 + 두 법인 비율(금액·물량, 합 100, 예 55:45). 금액 점유율 = 4법인 금액 합계 대비 / 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중(중앙·원협·대전청과·농협대전, 각 합 100).<br>
+    <p class="note">※ 경매 진행 순서(경매사별, 채소 → 과일)로 배열. <strong>품목 16개 이상 경매사는 물량 많은 순 상위 15개만 표시하고 나머지는 '기타'로 합산</strong>(소계·합계는 전 품목 반영). 그 외 경매사 블록 내부는 금액 많은 순.
+    중앙청과·원협노은은 금액·물량 실수치 + 두 법인 비율(금액·물량, 합 100, 예 55:45). 금액 점유율 = 4법인 금액 합계 대비 / 물량 점유율 = 4법인 물량 합계 대비 각 법인 비중.<br>
     <span class="star">*</span> 표시 품목 — 배추·얼갈이배추·열무·실파·쪽파: <strong>법인(공판장)별 입력 단위·방식이 상이</strong> / 보리수: <strong>국산·수입 혼입 가능(수입 품목과 겹침)</strong> → 물량·비율 직접 비교 시 주의 요망.</p>"""
 
 
