@@ -292,7 +292,9 @@ def generate_manager_html(end):
     vol = jq / (jq + wq) * 100 if (jq + wq) else 0
     amt = ja / (ja + wa) * 100 if (ja + wa) else 0
     djq = sum(v[J][0] for v in corp_d.values()); dwq = sum(v[W][0] for v in corp_d.values())
+    dja = sum(v[J][1] for v in corp_d.values()); dwa = sum(v[W][1] for v in corp_d.values())
     dvol = djq / (djq + dwq) * 100 if (djq + dwq) else 0
+    damt = dja / (dja + dwa) * 100 if (dja + dwa) else 0
 
     labels = sorted(order, key=lambda x: order[x])
     rows = ''
@@ -308,36 +310,40 @@ def generate_manager_html(end):
         losing = losing_products(prod[lb])
         if losing:
             chips = ' &nbsp;/&nbsp; '.join(
-                f'<b>{p}</b> 금액 중{d[J][1]/1e4:,.0f}:원{d[W][1]/1e4:,.0f}만 · 물량 중{d[J][0]/1000:.1f}:원{d[W][0]/1000:.1f}t'
-                for p, d in losing)
+                f'{p} <b>{d[J][1]/1e4:,.0f}:{d[W][1]/1e4:,.0f}</b>' for p, d in losing)
             rows += (f'<tr class="losing"><td colspan="6">'
-                     f'❌ <b>원협에 진 품목 {len(losing)}개</b>(금액 기준): {chips}</td></tr>')
+                     f'<span class="lh">중앙청과 : 원협</span> (금액, 만원) &nbsp; {chips}</td></tr>')
 
     today = date.today()
     html = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>노은도매시장 경매사별 열세 품목 분석 (관리자용)</title>
 <style>{CSS}
-tr.losing td{{background:#fdeceb;color:#b91c1c;font-size:9px;text-align:left;padding:4px 10px;line-height:1.6}}
-tr.losing b{{color:#8a1a12}}</style></head><body><div class="page">
+tr.losing td{{background:#f6f6f6;color:#222;font-size:9.5px;text-align:left;padding:5px 10px;line-height:1.8}}
+tr.losing b{{color:#0d47a1;font-weight:700}}
+tr.losing .lh{{color:#666;font-weight:700}}</style></head><body><div class="page">
   <div class="head">
     <div><h1>노은도매시장 경매사별 열세 품목 분석</h1>
-      <div class="legend">관리자용 · 원협노은에 <b style="color:#b91c1c">지는 품목</b> 원인 분석 &nbsp;·&nbsp;
-        <span class="cj">■ 중앙청과(우리)</span> <span class="cw">■ 원협노은</span></div></div>
+      <div class="legend">관리자용 · 우리가 <b style="color:#0d47a1">지는 품목</b> 원인 분석 &nbsp;·&nbsp;
+        <span class="cj">■ 중앙청과(우리)</span> <span class="cw">■ 원협</span></div></div>
     <div class="meta"><b>{end.year}년 {end.month}월 누계</b> ({start.month}/{start.day} ~ {end.month}/{end.day}, {days}영업일)<br>
       작성 {today.month}/{today.day} · 단위: kg · 원<br>출처: 도매시장통합 정산자료</div>
   </div>
   <div class="dash">
-    <div class="dash-h">📌 물량 점유율 한눈에 — 누계 · 당일</div>
+    <div class="dash-h">📌 한눈에 보는 결론 (중앙청과 : 원협)</div>
     <div class="kpis">
-      <div><div class="kpi-t"><span>이달 누계 물량</span><span class="win">중앙 {'▲' if vol>=50 else '▽'} {vol:.1f}%</span></div>
+      <div><div class="kpi-t"><span>물량 · 이달 누계</span><span class="win">중앙 {'▲' if vol>=50 else '▽'} {vol:.1f}%</span></div>
         <div class="bar"><span class="bj" style="width:{vol:.1f}%">중앙 {vol:.1f}%</span><span class="bw" style="width:{100-vol:.1f}%">원협 {100-vol:.1f}%</span></div></div>
-      <div><div class="kpi-t"><span>{end.month}/{end.day} 당일 물량</span><span class="win">중앙 {'▲' if dvol>=50 else '▽'} {dvol:.1f}%</span></div>
+      <div><div class="kpi-t"><span>물량 · {end.month}/{end.day} 당일</span><span class="win">중앙 {'▲' if dvol>=50 else '▽'} {dvol:.1f}%</span></div>
         <div class="bar"><span class="bj" style="width:{dvol:.1f}%">중앙 {dvol:.1f}%</span><span class="bw" style="width:{100-dvol:.1f}%">원협 {100-dvol:.1f}%</span></div></div>
+      <div><div class="kpi-t"><span>금액 · 이달 누계</span><span class="win">중앙 {'▲' if amt>=50 else '▽'} {amt:.1f}%</span></div>
+        <div class="bar"><span class="bj" style="width:{amt:.1f}%">중앙 {amt:.1f}%</span><span class="bw" style="width:{100-amt:.1f}%">원협 {100-amt:.1f}%</span></div></div>
+      <div><div class="kpi-t"><span>금액 · {end.month}/{end.day} 당일</span><span class="win">중앙 {'▲' if damt>=50 else '▽'} {damt:.1f}%</span></div>
+        <div class="bar"><span class="bj" style="width:{damt:.1f}%">중앙 {damt:.1f}%</span><span class="bw" style="width:{100-damt:.1f}%">원협 {100-damt:.1f}%</span></div></div>
     </div>
   </div>
   <section>
-    <div class="stitle">① 경매사별 거래현황 + 원협에 진 품목 <small>금액점유% = 경매사별 우리 비중 / 빨간 줄 = 원협에 진 품목(금액 기준)</small></div>
+    <div class="stitle">① 경매사별 거래현황 + 진 품목 <small>금액점유% = 경매사별 우리 비중 / 아래 줄 = 우리가 진 품목 (중앙:원협 금액)</small></div>
     <table><thead>
       <tr><th style="width:20%">경매사 (담당)</th>
         <th class="grp">중앙 물량(kg)</th><th class="grp">중앙 금액(원)</th>
@@ -348,13 +354,13 @@ tr.losing b{{color:#8a1a12}}</style></head><body><div class="page">
   </section>
   <section>
     <div class="stitle">② 물량 점유 — 당일 + 이달 누계 <small>(작년 대비 대신)</small></div>
-    <table class="cmp"><thead><tr><th style="width:30%">구분</th><th>중앙청과 (우리)</th><th>원협노은</th></tr></thead><tbody>
+    <table class="cmp"><thead><tr><th style="width:30%">구분</th><th>중앙청과</th><th>원협</th></tr></thead><tbody>
       <tr><td class="lbl">{end.month}/{end.day} 당일 물량</td><td class="vj">{djq/1000:.1f}톤 ({dvol:.1f}%)</td><td>{dwq/1000:.1f}톤 ({100-dvol:.1f}%)</td></tr>
       <tr><td class="lbl">{end.month}월 누계 물량</td><td class="vj">{jq/1000:.1f}톤 ({vol:.1f}%)</td><td>{wq/1000:.1f}톤 ({100-vol:.1f}%)</td></tr>
     </tbody></table>
   </section>
   <div class="foot"><div>대전중앙청과 · 노은도매시장 경매사별 열세 품목 분석 (관리자용, 자동 생성)</div>
-    <div><span style="color:#b91c1c;font-weight:700">빨간 줄 = 원협에 진 품목</span> — 원인 분석 대상</div></div>
+    <div>회색 줄 = 우리가 진 품목 (중앙 : 원협 금액, 만원) — 원인 분석 대상</div></div>
 </div></body></html>"""
     return html, dict(start=start, end=end, days=days, vol=vol, dvol=dvol,
                       jq=jq, wq=wq, djq=djq, dwq=dwq)
