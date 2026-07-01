@@ -309,10 +309,12 @@ def generate_manager_html(end):
                  f'<td class="pct {pcls(sh)}">{sh:.1f}%</td></tr>')
         losing = losing_products(prod[lb])
         if losing:
-            chips = ' &nbsp;/&nbsp; '.join(
-                f'{p} <b>{d[J][1]/1e4:,.0f}:{d[W][1]/1e4:,.0f}</b>' for p, d in losing)
-            rows += (f'<tr class="losing"><td colspan="6">'
-                     f'<span class="lh">중앙청과 : 원협</span> (금액, 만원) &nbsp; {chips}</td></tr>')
+            def _ratio(d):
+                t = d[J][1] + d[W][1]
+                jj = round(d[J][1] / t * 100) if t else 0
+                return f'{jj}:{100 - jj}'
+            chips = ' &nbsp;/&nbsp; '.join(f'{p} <b>{_ratio(d)}</b>' for p, d in losing)
+            rows += f'<tr class="losing"><td colspan="6">{chips}</td></tr>'
 
     today = date.today()
     html = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
@@ -343,7 +345,7 @@ tr.losing .lh{{color:#666;font-weight:700}}</style></head><body><div class="page
     </div>
   </div>
   <section>
-    <div class="stitle">① 경매사별 거래현황 + 진 품목 <small>금액점유% = 경매사별 우리 비중 / 아래 줄 = 우리가 진 품목 (중앙:원협 금액)</small></div>
+    <div class="stitle">① 경매사별 거래현황 + 진 품목 (중앙청과 : 원협) <small>금액점유% = 경매사별 우리 비중 / 아래 줄 = 우리가 진 품목 (금액 점유 비율, 합 100)</small></div>
     <table><thead>
       <tr><th style="width:20%">경매사 (담당)</th>
         <th class="grp">중앙 물량(kg)</th><th class="grp">중앙 금액(원)</th>
@@ -360,7 +362,7 @@ tr.losing .lh{{color:#666;font-weight:700}}</style></head><body><div class="page
     </tbody></table>
   </section>
   <div class="foot"><div>대전중앙청과 · 노은도매시장 경매사별 열세 품목 분석 (관리자용, 자동 생성)</div>
-    <div>회색 줄 = 우리가 진 품목 (중앙 : 원협 금액, 만원) — 원인 분석 대상</div></div>
+    <div>회색 줄 = 우리가 진 품목 (중앙 : 원협 금액 점유 비율, 합 100) — 원인 분석 대상</div></div>
 </div></body></html>"""
     return html, dict(start=start, end=end, days=days, vol=vol, dvol=dvol,
                       jq=jq, wq=wq, djq=djq, dwq=dwq)
