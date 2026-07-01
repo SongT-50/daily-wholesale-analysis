@@ -45,6 +45,17 @@ def main():
     with open(path, 'w', encoding='utf-8') as f:
         f.write(html)
 
+    # 관리자용(열세품목 분석) 보고서도 함께 생성 → 같은 메일에 첨부
+    mhtml, _ = bn.generate_manager_html(end)
+    if out_base:
+        mpath = os.path.join(out_base, f'noeun_manager_{end.isoformat()}.html')
+    else:
+        moutdir = os.path.join(bn.MONET, 'presentations', f'noeun-manager-report-{end.isoformat()}')
+        os.makedirs(moutdir, exist_ok=True)
+        mpath = os.path.join(moutdir, 'index.html')
+    with open(mpath, 'w', encoding='utf-8') as f:
+        f.write(mhtml)
+
     vol, amt = meta['vol'], meta['amt']
     ja, wa = meta['ja'], meta['wa']
     amt25, vol25 = meta['amt25'], meta['vol25']
@@ -76,7 +87,9 @@ def main():
     <p style="margin-top:12px;font-size:13px;">
       금액 격차: 중앙 {'＋' if gap>=0 else '−'}{abs(gap):.1f}억<br>
       작년 동기 대비: 금액점유 {amt25:.1f}% → <b>{amt:.1f}%</b> {trend}</p>
-    <p style="margin-top:10px;">📎 첨부: <b>경매사별 상세 + 작년 대비</b> 한 장 보고서 (인쇄용)</p>
+    <p style="margin-top:10px;">📎 첨부 2개:<br>
+      &nbsp;① <b>경매사별 거래현황 + 작년 대비</b> (인쇄용)<br>
+      &nbsp;② <b>관리자용 — 우리가 원협에 진 품목 분석</b> (원인 파악용)</p>
   </div>
   <div style="padding:14px;background:#eee;border-radius:0 0 8px 8px;font-size:12px;color:#666;">
     출처: 도매시장통합 정산자료 (노은시장 중앙청과·원협노은 2법인)<br>
@@ -89,11 +102,14 @@ def main():
     msg['From'] = gmail_addr
     msg['To'] = gmail_addr
     msg.attach(MIMEText(body, 'html', 'utf-8'))
-    with open(path, 'rb') as f:
-        att = MIMEApplication(f.read(), _subtype='html')
-    att.add_header('Content-Disposition', 'attachment',
-                   filename=f'노은도매시장_거래현황_{end.year}년{end.month}월누계_{end.isoformat()}.html')
-    msg.attach(att)
+    for p, fn in [
+        (path, f'노은도매시장_거래현황_{end.year}년{end.month}월누계_{end.isoformat()}.html'),
+        (mpath, f'노은도매시장_관리자용_열세품목_{end.isoformat()}.html'),
+    ]:
+        with open(p, 'rb') as f:
+            att = MIMEApplication(f.read(), _subtype='html')
+        att.add_header('Content-Disposition', 'attachment', filename=fn)
+        msg.attach(att)
 
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:

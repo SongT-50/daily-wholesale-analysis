@@ -115,21 +115,16 @@ jobs:
           echo "정산 보고서 2종(누계+하루치) 생성 및 메일 발송 (자동 기준월)"
           python send_settlement_email.py || echo "정산 보고서 메일 실패"
 
-      - name: Send Noeun market report email (매주 월요일 아침)
+      - name: Send Noeun market report email (매일)
         env:
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           AUCTION_ARCHIVE_DIR: data
           NOEUN_OUT_DIR: ${{ github.workspace }}
         run: |
-          # 노은 거래현황 보고서(경매사별 중앙vs원협 + 작년대비) = 주간 회의 자료 → 매주 월요일(KST)만 발송
-          DOW=$(TZ=Asia/Seoul date +%u)
-          if [ "$DOW" = "1" ]; then
-            echo "월요일(KST) — 노은도매시장 거래현황 보고서 발송"
-            python send_noeun_email.py || echo "노은 보고서 메일 실패"
-          else
-            echo "월요일 아님(KST 요일=$DOW) — 노은 발송 skip"
-          fi
+          # 노은 거래현황 보고서(일반 + 관리자용 열세품목 분석, 2첨부) = 매일 발송 (정산메일과 함께)
+          echo "노은도매시장 거래현황 + 관리자용 열세품목 분석 보고서 발송"
+          python send_noeun_email.py || echo "노은 보고서 메일 실패"
 
       - name: Send DJC management report email
         env:
