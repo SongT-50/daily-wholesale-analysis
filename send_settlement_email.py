@@ -132,11 +132,22 @@ def main():
     _attach_html(msg, cum["path"])
     _attach_html(msg, daily["path"])
 
+    # 전국 도매시장 현황(WI-인텔리전스) 동봉 — 실패해도 정산메일은 그대로 발송(기존 파이프라인 보호)
+    n_attach = 2
+    try:
+        from build_national_report import build as build_national
+        nat_path = build_national(cum["last_day"].isoformat())
+        _attach_html(msg, Path(nat_path))
+        n_attach = 3
+        print(f"[national] 전국 리포트 첨부: {nat_path}")
+    except Exception as e:
+        print(f"[national] 전국 리포트 생성/첨부 건너뜀(정산메일은 계속): {e}")
+
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(gmail_addr, gmail_pw)
             server.send_message(msg)
-        print(f"정산 보고서 메일 발송 완료: {gmail_addr} (첨부 2개, 경고 {len(all_warn)}건)")
+        print(f"정산 보고서 메일 발송 완료: {gmail_addr} (첨부 {n_attach}개, 경고 {len(all_warn)}건)")
     except Exception as e:
         print(f"메일 발송 실패: {e}")
 
