@@ -381,10 +381,12 @@ tr.losing .lh{{color:#666;font-weight:700}}</style></head><body><div class="page
     <div class="note">＊ 서병수·김선우 부장 등 품목 많은 경매사는 물량 상위 15개 중에서만 '진 품목' 표시(엽채류 전량 제외). 과일 파트는 대체로 우세.</div>
   </section>
   <section>
-    <div class="stitle">② 물량 점유 — 당일 + 이달 누계 <small>(작년 대비 대신)</small></div>
+    <div class="stitle">② 물량·금액 점유 — 당일 + 이달 누계 <small>(작년 대비 대신)</small></div>
     <table class="cmp"><thead><tr><th style="width:30%">구분</th><th>중앙청과</th><th>원협</th></tr></thead><tbody>
       <tr><td class="lbl">{end.month}/{end.day} 당일 물량</td><td class="vj">{djq/1000:.1f}톤 ({dvol:.1f}%)</td><td>{dwq/1000:.1f}톤 ({100-dvol:.1f}%)</td></tr>
+      <tr><td class="lbl">{end.month}/{end.day} 당일 금액</td><td class="vj">{dja/1e8:.1f}억 ({damt:.1f}%)</td><td>{dwa/1e8:.1f}억 ({100-damt:.1f}%)</td></tr>
       <tr><td class="lbl">{end.month}월 누계 물량</td><td class="vj">{jq/1000:.1f}톤 ({vol:.1f}%)</td><td>{wq/1000:.1f}톤 ({100-vol:.1f}%)</td></tr>
+      <tr><td class="lbl">{end.month}월 누계 금액</td><td class="vj">{ja/1e8:.1f}억 ({amt:.1f}%)</td><td>{wa/1e8:.1f}억 ({100-amt:.1f}%)</td></tr>
     </tbody></table>
   </section>
   <div class="foot"><div>대전중앙청과 · 노은도매시장 경매사별 열세 품목 분석 (관리자용, 자동 생성)</div>
