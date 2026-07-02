@@ -53,6 +53,27 @@ def totals(data):
     return jq, ja, wq, wa
 
 
+def snapshot_totals(start, end):
+    """아카이브에 없는 과거 기간(GitHub Actions data/는 최근 몇 달만)의 노은 2법인 합계를
+    data/noeun_prev_snapshot.json(일별, make_noeun_snapshot.py로 로컬 생성)에서 계산.
+    스냅샷 범위 밖이면 None."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'noeun_prev_snapshot.json')
+    if not os.path.exists(path):
+        return None
+    import json
+    with open(path, encoding='utf-8') as f:
+        snap = json.load(f)
+    s, e = start.isoformat(), end.isoformat()
+    jq = ja = wq = wa = 0.0
+    hit = False
+    for d, corps in snap.items():
+        if s <= d <= e:
+            hit = True
+            q, a = corps.get(J, [0, 0]); jq += q; ja += a
+            q, a = corps.get(W, [0, 0]); wq += q; wa += a
+    return (jq, ja, wq, wa) if hit else None
+
+
 def pcls(p):
     return 'p-big' if p >= 55 else 'p-win' if p >= 50 else 'p-mid' if p >= 47 else 'p-lose'
 
@@ -129,17 +150,22 @@ tr.rest td{background:#fafafa;color:#999}
 
 
 def generate_html(end_date):
-    start = date(end_date.year, 6, 1)
+    start = date(end_date.year, end_date.month, 1)   # 해당 월 1일 (6월 하드코딩 제거 — 월 경계)
     recs, days = sr.load_range(start, end_date)
     data, order, prods = agg_auctioneer(recs)
     # 작년 동기 (같은 월/일)
-    start25 = date(end_date.year - 1, 6, 1)
+    start25 = date(end_date.year - 1, end_date.month, 1)
     end25 = date(end_date.year - 1, end_date.month, end_date.day)
     recs25, days25 = sr.load_range(start25, end25)
     data25, _, _ = agg_auctioneer(recs25)
 
     jq, ja, wq, wa = totals(data)
     jq25, ja25, wq25, wa25 = totals(data25)
+    if not recs25:
+        # GitHub Actions: data/에 작년 파일이 없어 빈 집계(0%) → 스냅샷으로 대체
+        snap = snapshot_totals(start25, end25)
+        if snap:
+            jq25, ja25, wq25, wa25 = snap
     vol = jq / (jq + wq) * 100; amt = ja / (ja + wa) * 100
     vol25 = jq25 / (jq25 + wq25) * 100 if (jq25 + wq25) else 0
     amt25 = ja25 / (ja25 + wa25) * 100 if (ja25 + wa25) else 0
@@ -281,7 +307,7 @@ def losing_products(items):
 
 def generate_manager_html(end):
     """관리자용 — 원협에 지는 품목 원인 분석 (강/약배지·작년대비 제거, 진품목·당일물량 추가)."""
-    start = date(end.year, 6, 1)
+    start = date(end.year, end.month, 1)   # 해당 월 1일 (6월 하드코딩 제거 — 월 경계)
     recs, days = sr.load_range(start, end)
     corp, prod, order = agg_auctioneer_detail(recs)
     recs_d, _ = sr.load_range(end, end)
