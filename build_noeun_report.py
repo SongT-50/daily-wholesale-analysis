@@ -74,6 +74,28 @@ def snapshot_totals(start, end):
     return (jq, ja, wq, wa) if hit else None
 
 
+def load_auct_snapshot(start, end):
+    """GitHub Actions(data/에 작년 파일 없음)에서 작년 경매사별 값을 대체할 스냅샷 로드.
+    make_noeun_snapshot.py --auctioneer 로 로컬 아카이브에서 미리 생성해 커밋해 둔 파일.
+    범위 밖이면 None."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'noeun_prev_auct_snapshot.json')
+    if not os.path.exists(path):
+        return None
+    import json
+    with open(path, encoding='utf-8') as f:
+        snap = json.load(f)
+    s, e = start.isoformat(), end.isoformat()
+    corp = defaultdict(lambda: {J: [0.0, 0.0], W: [0.0, 0.0]})
+    hit = False
+    for d, labels in snap.items():
+        if s <= d <= e:
+            hit = True
+            for lb, v in labels.items():
+                corp[lb][J][0] += v['J'][0]; corp[lb][J][1] += v['J'][1]
+                corp[lb][W][0] += v['W'][0]; corp[lb][W][1] += v['W'][1]
+    return dict(corp) if hit else None
+
+
 def pcls(p):
     return 'p-big' if p >= 55 else 'p-win' if p >= 50 else 'p-mid' if p >= 47 else 'p-lose'
 
@@ -312,6 +334,25 @@ def generate_manager_html(end):
     corp, prod, order = agg_auctioneer_detail(recs)
     recs_d, _ = sr.load_range(end, end)
     corp_d, _, _ = agg_auctioneer_detail(recs_d)
+    # 작년 동기(같은 월/일) 경매사별 — 로컬 아카이브에서 직접. GA(data/에 작년 없음)면 빈 dict → 병기 생략.
+    start25 = date(end.year - 1, end.month, 1)
+    end25 = date(end.year - 1, end.month, end.day)
+    recs25, _ = sr.load_range(start25, end25)
+    corp25, _, _ = agg_auctioneer_detail(recs25)
+    has_prev = bool(recs25)
+    if not has_prev:
+        # GitHub Actions: data/에 작년 파일 없음 → 경매사별 스냅샷으로 대체
+        snap25 = load_auct_snapshot(start25, end25)
+        if snap25:
+            corp25 = snap25
+            has_prev = True
+
+    def cell(now, old, div, dec):
+        """올해 값(그대로 크기) + 작년 값(회색 작게 병기). 단위 축소로 자릿수↓ = 줄바꿈 없이 한 칸."""
+        cur = f'{now/div:,.{dec}f}'
+        if has_prev:
+            return f'{cur}<span class="yoy">/{old/div:,.{dec}f}</span>'
+        return cur
 
     jq = sum(v[J][0] for v in corp.values()); ja = sum(v[J][1] for v in corp.values())
     wq = sum(v[W][0] for v in corp.values()); wa = sum(v[W][1] for v in corp.values())
@@ -326,12 +367,16 @@ def generate_manager_html(end):
     rows = ''
     for lb in labels:
         c = corp[lb]; js, ws = c[J], c[W]
+        c25 = corp25.get(lb, {J: [0.0, 0.0], W: [0.0, 0.0]})
+        js25, ws25 = c25[J], c25[W]
         denom = js[1] + ws[1]
         sh = js[1] / denom * 100 if denom else 0
         clean = clean_label(lb)
         rows += (f'<tr><td class="lbl">{clean}</td>'
-                 f'<td class="colj">{f0(js[0])}</td><td class="colj">{f0(js[1])}</td>'
-                 f'<td class="colw">{f0(ws[0])}</td><td class="colw">{f0(ws[1])}</td>'
+                 f'<td class="colj">{cell(js[0], js25[0], 1000, 1)}</td>'
+                 f'<td class="colj">{cell(js[1], js25[1], 1e6, 0)}</td>'
+                 f'<td class="colw">{cell(ws[0], ws25[0], 1000, 1)}</td>'
+                 f'<td class="colw">{cell(ws[1], ws25[1], 1e6, 0)}</td>'
                  f'<td class="pct {pcls(sh)}">{sh:.1f}%</td></tr>')
         losing = losing_products(prod[lb])
         if losing:
@@ -347,9 +392,11 @@ def generate_manager_html(end):
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>노은도매시장 경매사별 열세 품목 분석 (관리자용)</title>
 <style>{CSS}
-tr.losing td{{background:#f6f6f6;color:#222;font-size:9.5px;text-align:left;padding:5px 10px;line-height:1.8}}
-tr.losing b{{color:#0d47a1;font-weight:700}}
-tr.losing .lh{{color:#666;font-weight:700}}</style></head><body><div class="page">
+tr.losing td{{background:#f6f6f6;color:#222;font-size:11px;text-align:left;padding:6px 10px;line-height:1.75}}
+tr.losing b{{color:#0d47a1;font-weight:700;font-size:11.5px}}
+tr.losing .lh{{color:#666;font-weight:700}}
+.yoy{{color:#8a8a8a;font-weight:600;font-size:9.5px;margin-left:1px}}
+th .uh{{font-weight:600;color:#8a8a8a;font-size:8.5px;display:block;margin-top:1px}}</style></head><body><div class="page">
   <div class="head">
     <div><h1>노은도매시장 경매사별 열세 품목 분석</h1>
       <div class="legend">관리자용 · 우리가 <b style="color:#0d47a1">지는 품목</b> 원인 분석 &nbsp;·&nbsp;
@@ -371,14 +418,14 @@ tr.losing .lh{{color:#666;font-weight:700}}</style></head><body><div class="page
     </div>
   </div>
   <section>
-    <div class="stitle">① 경매사별 거래현황 + 진 품목 (중앙청과 : 원협) <small>금액점유% = 경매사별 우리 비중 / 아래 줄 = 우리가 진 품목 (금액 점유 비율, 합 100)</small></div>
+    <div class="stitle">① 경매사별 거래현황 + 진 품목 (중앙청과 : 원협) <small>금액점유% = 경매사별 우리 비중 / 아래 줄 = 우리가 진 품목 (금액 점유 비율, 합 100){' · 물량·금액 = 올해/작년 동기 병기' if has_prev else ''}</small></div>
     <table><thead>
       <tr><th style="width:20%">경매사 (담당)</th>
-        <th class="grp">중앙 물량(kg)</th><th class="grp">중앙 금액(원)</th>
-        <th class="grpw">원협 물량(kg)</th><th class="grpw">원협 금액(원)</th>
+        <th class="grp">중앙 물량<span class="uh">톤{' · 올해/작년' if has_prev else ''}</span></th><th class="grp">중앙 금액<span class="uh">백만원{' · 올해/작년' if has_prev else ''}</span></th>
+        <th class="grpw">원협 물량<span class="uh">톤{' · 올해/작년' if has_prev else ''}</span></th><th class="grpw">원협 금액<span class="uh">백만원{' · 올해/작년' if has_prev else ''}</span></th>
         <th style="width:9%">중앙<br>금액점유</th></tr>
     </thead><tbody>{rows}</tbody></table>
-    <div class="note">＊ 서병수·김선우 부장 등 품목 많은 경매사는 물량 상위 15개 중에서만 '진 품목' 표시(엽채류 전량 제외). 과일 파트는 대체로 우세.</div>
+    <div class="note">＊ 물량=톤, 금액=백만원. {'회색=작년 동기(같은 6월 1~' + str(end.day) + '일). ' if has_prev else ''}서병수·김선우 부장 등 품목 많은 경매사는 물량 상위 15개 중에서만 '진 품목' 표시(엽채류 전량 제외). 과일 파트는 대체로 우세.</div>
   </section>
   <section>
     <div class="stitle">② 물량·금액 점유 — 당일 + 이달 누계 <small>(작년 대비 대신)</small></div>

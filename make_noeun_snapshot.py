@@ -16,9 +16,11 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import settlement_report as sr
+import build_noeun_report as bn
 
 J, W = "25000301", "25000302"
 OUT = Path(__file__).parent / "data" / "noeun_prev_snapshot.json"
+OUT_AUCT = Path(__file__).parent / "data" / "noeun_prev_auct_snapshot.json"
 
 
 def main():
@@ -29,7 +31,8 @@ def main():
     start = date.fromisoformat(args.start)
     end = date.fromisoformat(args.end)
 
-    snap = {}
+    snap = {}       # 일별 2법인 합계 (작년 대비 KPI용)
+    auct = {}       # 일별 경매사별 J/W [qty,amt] (관리자용 ① 표 작년 병기용)
     cur = start
     while cur <= end:
         recs, _ = sr.load_day(cur)
@@ -46,15 +49,22 @@ def main():
             agg[code][1] += a
         if agg:
             snap[cur.isoformat()] = agg
+        # 경매사별 (build_noeun_report와 동일 라벨 로직 재사용 = 보고서와 정합)
+        corp, _, _ = bn.agg_auctioneer_detail(recs)
+        if corp:
+            auct[cur.isoformat()] = {lb: {'J': v[J], 'W': v[W]} for lb, v in corp.items()}
         cur = date.fromordinal(cur.toordinal() + 1)
 
     OUT.parent.mkdir(exist_ok=True)
     with open(OUT, 'w', encoding='utf-8') as f:
         json.dump(snap, f, ensure_ascii=False, separators=(',', ':'))
+    with open(OUT_AUCT, 'w', encoding='utf-8') as f:
+        json.dump(auct, f, ensure_ascii=False, separators=(',', ':'))
     tq = sum(v.get(J, [0, 0])[0] + v.get(W, [0, 0])[0] for v in snap.values())
     ta = sum(v.get(J, [0, 0])[1] + v.get(W, [0, 0])[1] for v in snap.values())
     print(f"✅ 스냅샷 {len(snap)}일 ({args.start}~{args.end}) → {OUT}")
     print(f"   노은 2법인 합계: {tq:,.0f}kg / {ta:,.0f}원")
+    print(f"✅ 경매사별 스냅샷 {len(auct)}일 → {OUT_AUCT}")
 
 
 if __name__ == '__main__':
