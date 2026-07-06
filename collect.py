@@ -262,6 +262,35 @@ def is_outlier(item: dict) -> bool:
     return False
 
 
+def merge_markets_preserve(old_result: dict, new_result: dict) -> dict:
+    """시장별 안전머지 — 각 시장에서 items 많은 쪽을 보존한다.
+
+    새 수집이 특정 시장을 0건/적게 받아와도(반쪽) 기존 완전본 시장을 잃지 않는다.
+    recollect_month.recollect_date(L66-77)와 동일한 '시장 단위' 비교 원칙을
+    일일 수집 경로에도 적용해 '완전본을 반쪽이 덮어쓰는' 소실을 원천 차단한다.
+    old_result가 없으면 new_result를 그대로 반환(신규 저장 = no-op).
+    """
+    if not old_result or not old_result.get("markets"):
+        return new_result
+    old_markets = old_result.get("markets", {})
+    new_markets = new_result.get("markets", {})
+    merged: dict = {}
+    for code in set(old_markets) | set(new_markets):
+        old_mkt = old_markets.get(code, {})
+        new_mkt = new_markets.get(code, {})
+        # 시장별로 items 많은 쪽 채택 (동수면 새것)
+        if len(new_mkt.get("items", [])) >= len(old_mkt.get("items", [])):
+            merged[code] = new_mkt
+        else:
+            merged[code] = old_mkt
+    result = dict(new_result)
+    result["markets"] = merged
+    result["total_collected"] = sum(len(m.get("items", [])) for m in merged.values())
+    result["total_available"] = sum(m.get("total_available", 0) for m in merged.values())
+    result["market_count"] = len(merged)
+    return result
+
+
 def collect(date: str, market_codes: dict[str, str]) -> dict:
     """전체 수집 실행"""
     print(f"수집 시작: {date} (정산정보 API)")
@@ -309,13 +338,24 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     out_file = OUTPUT_DIR / f"auction_{date}.json"
+    month_dir = ARCHIVE_DIR / date[:7]
+    archive_file = month_dir / f"auction_{date}.json"
+
+    # 시장별 안전머지: 기존 저장본(data/ + 아카이브)의 각 시장 many-side를 보존
+    # → 반쪽 수집(특정 시장 0건)이 완전본을 덮어쓰는 소실을 원천 차단
+    for existing in (out_file, archive_file):
+        if existing.exists():
+            try:
+                with open(existing, "r", encoding="utf-8") as f:
+                    result = merge_markets_preserve(json.load(f), result)
+            except (json.JSONDecodeError, OSError):
+                pass
+
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     # 아카이브 저장 (월별 폴더)
-    month_dir = ARCHIVE_DIR / date[:7].replace("-", "-")
     month_dir.mkdir(parents=True, exist_ok=True)
-    archive_file = month_dir / f"auction_{date}.json"
     with open(archive_file, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
@@ -327,50 +367,38 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
 
 
 def backfill(date: str, market_codes: dict[str, str], max_lag_days: int = 5) -> bool:
-    """공판장 정산 지연 보정 — 기존 데이터보다 많으면 덮어쓰기.
+    """공판장 정산 지연 보정 — collect()가 시장별 안전머지로 저장하므로
+    반쪽 수집이 완전본을 덮지 않는다(구버전의 bytes 복원 로직 불필요).
 
     공판장(농협/원협)은 청과법인보다 정산 업로드가 3일 이상 늦는 경우가 있음.
     - 안정화 skip: 대상일 + max_lag_days 이후에 수집된 데이터는 더 받아도 안 늘 가능성이
       높으므로 재수집(API 호출)을 건너뛴다. (윈도우를 D+5로 넓혀도 호출 폭증 방지)
-    - 손실 방지: collect()는 data/ + 아카이브를 즉시 덮어쓰므로, 새 수집이 기존보다
-      적거나 같으면 두 파일 모두 원본으로 복원한다. (구버전의 `pass`만 두던 버그 수정)
-    반환: True = 업데이트됨, False = 변동 없음/skip
+    - 손실 방지: collect()가 각 시장 many-side를 보존하므로 결과는 항상 완전본 이상.
+    반환: True = 건수 증가(보정됨), False = 변동 없음/skip
     """
     from datetime import date as _date
 
     out_file = OUTPUT_DIR / f"auction_{date}.json"
-    arch_file = ARCHIVE_DIR / date[:7] / f"auction_{date}.json"
     old_count = 0
-    old_out_bytes = old_arch_bytes = None
 
     if out_file.exists():
-        old_out_bytes = out_file.read_bytes()
-        old_data = json.loads(old_out_bytes)
-        old_count = old_data.get("total_collected", 0)
-        collected = (old_data.get("collected_at", "") or "")[:10]
-        if collected:
-            try:
-                if (_date.fromisoformat(collected) - _date.fromisoformat(date)).days >= max_lag_days:
-                    print(f"  - {date} 이미 안정화 (수집일 {collected}, D+{max_lag_days}↑) — 재수집 skip")
-                    return False
-            except ValueError:
-                pass
-    if arch_file.exists():
-        old_arch_bytes = arch_file.read_bytes()
+        try:
+            old_data = json.loads(out_file.read_bytes())
+            old_count = old_data.get("total_collected", 0)
+            collected = (old_data.get("collected_at", "") or "")[:10]
+            if collected and (_date.fromisoformat(collected) - _date.fromisoformat(date)).days >= max_lag_days:
+                print(f"  - {date} 이미 안정화 (수집일 {collected}, D+{max_lag_days}↑) — 재수집 skip")
+                return False
+        except (json.JSONDecodeError, ValueError, OSError):
+            pass
 
-    # 새로 수집 (collect가 data/ + 아카이브 둘 다 즉시 저장)
+    # 새로 수집 (collect가 시장별 안전머지로 data/ + 아카이브 저장 = 완전본 보존)
     new_data = collect(date, market_codes)
     new_count = new_data.get("total_collected", 0)
 
     if new_count > old_count:
         print(f"  ✓ {date} 보정 완료: {old_count:,} → {new_count:,}건 (+{new_count - old_count:,}건)")
         return True
-
-    # 새 수집이 더 적거나 같음 → collect가 덮어쓴 것을 원본으로 복원 (data/ + 아카이브)
-    if old_out_bytes is not None:
-        out_file.write_bytes(old_out_bytes)
-    if old_arch_bytes is not None and arch_file.exists():
-        arch_file.write_bytes(old_arch_bytes)
     print(f"  - {date} 변동 없음 ({new_count:,}건) — 기존 데이터 유지")
     return False
 
