@@ -395,7 +395,7 @@ def generate_manager_html(end):
 tr.losing td{{background:#f6f6f6;color:#222;font-size:11px;text-align:left;padding:6px 10px;line-height:1.75}}
 tr.losing b{{color:#0d47a1;font-weight:700;font-size:11.5px}}
 tr.losing .lh{{color:#666;font-weight:700}}
-.yoy{{color:#8a8a8a;font-weight:600;font-size:9.5px;margin-left:1px}}
+.yoy{{color:inherit;font-weight:inherit;font-size:inherit;margin-left:2px}}
 th .uh{{font-weight:600;color:#8a8a8a;font-size:8.5px;display:block;margin-top:1px}}</style></head><body><div class="page">
   <div class="head">
     <div><h1>노은도매시장 경매사별 열세 품목 분석</h1>
@@ -425,7 +425,7 @@ th .uh{{font-weight:600;color:#8a8a8a;font-size:8.5px;display:block;margin-top:1
         <th class="grpw">원협 물량<span class="uh">톤{' · 올해/작년' if has_prev else ''}</span></th><th class="grpw">원협 금액<span class="uh">백만원{' · 올해/작년' if has_prev else ''}</span></th>
         <th style="width:9%">중앙<br>금액점유</th></tr>
     </thead><tbody>{rows}</tbody></table>
-    <div class="note">＊ 물량=톤, 금액=백만원. {'회색=작년 동기(같은 6월 1~' + str(end.day) + '일). ' if has_prev else ''}서병수·김선우 부장 등 품목 많은 경매사는 물량 상위 15개 중에서만 '진 품목' 표시(엽채류 전량 제외). 과일 파트는 대체로 우세.</div>
+    <div class="note">＊ 물량=톤, 금액=백만원. {'슬래시(/) 뒤 = 작년 동기(같은 기간 1~' + str(end.day) + '일). ' if has_prev else ''}서병수·김선우 부장 등 품목 많은 경매사는 물량 상위 15개 중에서만 '진 품목' 표시(엽채류 전량 제외). 과일 파트는 대체로 우세.</div>
   </section>
   <section>
     <div class="stitle">② 물량·금액 점유 — 당일 + 이달 누계 <small>(작년 대비 대신)</small></div>
