@@ -26,6 +26,16 @@
     "2025-01-07": {"amount": 681000000, "qty_kg": null},
     "2025-01-08": {"amount": 799000000, "qty_kg": null}
   },
+  "official_overrides": {
+    "_note": "aT(data.go.kr) 재집계가 원협(25000302) 특정 월을 실제보다 과대 집계 → 공식 현황판(각 법인이 시장관리사무소에 보고한 실거래 실적, 태은이가 '실질적'이라 확인한 authoritative 자료)값으로 교체. ★노은 월별 집계·그래프를 만들 때 이 값을 aT보다 우선 사용. (태은이 2026-07-06 지시: 이미 발송한 4·5월 과거분은 재발송 X, 앞으로 노은 월별은 공식 보정값으로 진행.)",
+    "_unit": "amount_eok=억원, qty_ton=톤",
+    "market": "250003(노은)",
+    "corp": "25000302(원예농협공판장·원협)",
+    "2026-04": {"at_amount_eok": 189.9, "official_amount_eok": 126.2, "at_qty_ton": 8726, "official_qty_ton": 5814, "over_amount_eok": 63.7, "over_qty_ton": 2912},
+    "2026-05": {"at_amount_eok": 150.9, "official_amount_eok": 126.8, "at_qty_ton": 7781, "official_qty_ton": 6599, "over_amount_eok": 24.1, "over_qty_ton": 1182},
+    "_other_months": "원협 1·3·6월은 aT=공식 일치(override 불필요). 2월은 소실(missing_days/재수집)로 별도 처리. 중앙청과(25000301)는 공식과 완벽 일치라 override 없음.",
+    "_source_artifact": "presentations/noeun-monthly-official-vs-ours-2026-07-06/index.html (5개월 개별 공식파일로 검증한 원본)"
+  },
   "ledger_halfyear": {
     "_note": "회사 월계표 II 상반기(1~6월) 합계 — 소실 보정 후 총액 검증 기준",
     "2025": {"amount": 88137663532, "qty_kg": 37100879},
