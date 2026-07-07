@@ -168,9 +168,12 @@ def find_last_settled_day(start: date, end: date):
     return end
 
 
-# 공판장(원협노은·농협대전) 정산 2~3일 지연 → 오늘로부터 N일 지난 날까지만 집계해
-# 미완성(절반짜리) 수치가 자동 메일로 나가는 것을 방지. 태은이 결재(2026-05-29): 3일.
-SETTLE_LAG_DAYS = int(os.getenv("SETTLE_LAG_DAYS", "3"))
+# 공판장(원협노은·농협대전) 정산 지연 → 오늘로부터 N일 지난 날까지만 집계해
+# 미완성(절반짜리) 수치가 자동 메일로 나가는 것을 방지.
+# 태은이 결재(2026-05-29): 3일 → 갱신(2026-07-07): 4일.
+#   근거: 모든 법인은 정산자료를 D+4는 지나야 완비된다(태은이 도메인 재확인). find_last_settled_day는
+#   4법인 '존재'만 확인하므로(부분데이터 오판 여지), cutoff를 D+4로 늦춰 완비 확실성을 높인다.
+SETTLE_LAG_DAYS = int(os.getenv("SETTLE_LAG_DAYS", "4"))
 
 
 def resolve_auto_end(start: date, today: date = None):
