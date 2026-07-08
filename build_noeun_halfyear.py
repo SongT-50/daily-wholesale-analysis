@@ -107,15 +107,11 @@ def prod_group(prods_lb, n=3):
 
 def build():
     m26 = month_totals(2026, use_xls_45=True)
-    m25 = month_totals(2025, use_xls_45=False)
-    # 누계
+    # 누계 (2026 상반기, 중앙 vs 원협만 — 작년 비교 제거: 태은이 7/8 "순전히 올해 비교")
     j26a = sum(v[0] for v in m26.values()); j26q = sum(v[1] for v in m26.values())
     w26a = sum(v[2] for v in m26.values()); w26q = sum(v[3] for v in m26.values())
-    j25a = sum(v[0] for v in m25.values()); j25q = sum(v[1] for v in m25.values())
-    w25a = sum(v[2] for v in m25.values()); w25q = sum(v[3] for v in m25.values())
     amt_share26 = pct(j26a, w26a); qty_share26 = pct(j26q, w26q)
-    amt_share25 = pct(j25a, w25a); qty_share25 = pct(j25q, w25q)
-    gap26 = (j26a - w26a) / 1e8; gap25 = (j25a - w25a) / 1e8
+    gap26 = (j26a - w26a) / 1e8
 
     data, order, prods = auctioneer_halfyear()
     labels = sorted(order, key=lambda x: order[x])
@@ -129,15 +125,6 @@ def build():
     sja = sum(r[3] for r in rows); sjq = sum(r[2] for r in rows)
     swa = sum(r[5] for r in rows); swq = sum(r[4] for r in rows)
     corr24 = MDAYS["2026-02-24"]  # 중앙 2/24 보정
-
-    # 강/약 품목군 (경매사별 점유 상·하위, 미배정/나머지 제외)
-    rankable = [r for r in rows if not r[0].startswith("미배정") and not r[0].startswith("나머지")]
-    strong = sorted(rankable, key=lambda r: -r[6])[:5]
-    weak = sorted(rankable, key=lambda r: r[6])[:5]
-
-    def chip(r):
-        return (f'<span class="chip"><span class="nm">{r[0]}</span>'
-                f'<span class="it">{r[1]}</span><b>{r[6]:.0f}%</b></span>')
 
     # 월별 추이 행
     mrows = ""
@@ -158,15 +145,7 @@ def build():
         arows += (f'<tr><td class="lbl">{nm} <span class="sub">({pg})</span></td>'
                   f'<td class="colj">{kg(jq)}</td><td class="colj">{won(ja)}</td>'
                   f'<td class="colw">{kg(wq)}</td><td class="colw">{won(wa)}</td>'
-                  f'<td class="pct {pcls(p)}">{p:.1f}%</td></tr>')
-
-    strong_chips = "".join(chip(r) for r in strong)
-    weak_chips = "".join(chip(r) for r in weak)
-
-    def arrow(now, old):
-        if now > old + 0.05: return f'<span class="ar-up">▲</span>'
-        if now < old - 0.05: return f'<span class="ar-dn">▼</span>'
-        return '='
+                  f'<td class="pct {pcls(p)}"><span class="pnm">{nm}</span>{p:.1f}%</td></tr>')
 
     HTML = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -220,6 +199,9 @@ td.lbl{{text-align:left;font-weight:700;font-size:11px;white-space:nowrap}}
 td.sub,span.sub{{font-size:9px;color:var(--sub);font-weight:500}}
 .colj{{background:#f7faff}}.colw{{background:#fdf6f0}}
 td.pct{{font-weight:800;text-align:center;font-size:12px}}
+.auc tbody td{{padding-top:6.5px;padding-bottom:6.5px}}
+.pct .pnm{{display:block;font-size:8.5px;font-weight:600;color:#555;margin-bottom:2px;line-height:1.12;white-space:normal;letter-spacing:-.2px}}
+.p-big .pnm,.p-lose .pnm{{color:#fff;opacity:.92}}
 .p-win{{color:var(--jung)}}.p-big{{color:#fff;background:var(--jung)}}.p-lose{{color:#fff;background:var(--won)}}.p-mid{{color:#555}}
 tr.total td{{background:#1a1a1a;color:#fff;font-weight:800;font-size:12px;border-color:#1a1a1a}}
 tr.total td.pct{{background:#1a1a1a;color:#ffd84d}}
@@ -244,33 +226,19 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
   <div class="dash">
     <div class="dash-h">📌 한눈에 보는 결론 — 2026 상반기 (1~6월 누계)</div>
     <div class="kpis">
-      <div><div class="kpi-t"><span>물량 점유</span><span class="win">중앙 우세 ▲</span></div>
+      <div><div class="kpi-t"><span>물량 점유</span><span class="win">중앙 우세</span></div>
         <div class="bar"><span class="bj" style="width:{qty_share26:.1f}%">중앙 {qty_share26:.1f}%</span><span class="bw" style="width:{100-qty_share26:.1f}%">원협 {100-qty_share26:.1f}%</span></div></div>
-      <div><div class="kpi-t"><span>금액 점유</span><span class="win">중앙 우세 ▲</span></div>
+      <div><div class="kpi-t"><span>금액 점유</span><span class="win">중앙 우세</span></div>
         <div class="bar"><span class="bj" style="width:{amt_share26:.1f}%">중앙 {amt_share26:.1f}%</span><span class="bw" style="width:{100-amt_share26:.1f}%">원협 {100-amt_share26:.1f}%</span></div>
         <div class="kpi-sub">중앙 <b>{eok(j26a)}억</b> vs 원협 <b>{eok(w26a)}억</b> &nbsp;( ＋{gap26:.1f}억 )</div></div>
     </div>
-    <div class="trend">
-      <div class="tcard"><div class="tl">작년 대비 · 금액 점유</div>
-        <div class="tv"><span class="old">{amt_share25:.1f}%</span> → {amt_share26:.1f}% {arrow(amt_share26,amt_share25)}</div></div>
-      <div class="tcard"><div class="tl">작년 대비 · 물량 점유</div>
-        <div class="tv"><span class="old">{qty_share25:.1f}%</span> → {qty_share26:.1f}% {arrow(qty_share26,qty_share25)}</div></div>
-      <div class="tcard"><div class="tl">작년 대비 · 금액 격차</div>
-        <div class="tv"><span class="old">+{gap25:.1f}억</span> → +{gap26:.1f}억 <span class="ar-up">▲</span></div></div>
-    </div>
-  </div>
-  <div class="sw">
-    <div class="swbox good"><h3>💪 우리가 강한 품목군 <small style="font-weight:600;color:#888;font-size:10px">(금액점유 높은 순)</small></h3>
-      <div class="chips">{strong_chips}</div></div>
-    <div class="swbox bad"><h3>⚠️ 우리가 약한 품목군 <small style="font-weight:600;color:#888;font-size:10px">(금액점유 낮은 순)</small></h3>
-      <div class="chips">{weak_chips}</div></div>
   </div>
   <section>
     <div class="stitle">① 경매사별 거래현황 <small>상반기 1~6월 누계 · 금액점유% = 그 품목군에서 우리 비중 (파랑=우세 / 벽돌=열세)</small></div>
-    <table><thead>
-      <tr><th rowspan="2" style="width:25%">경매사 (담당 품목군)</th>
+    <table class="auc"><thead>
+      <tr><th rowspan="2" style="width:24%">경매사 (담당 품목군)</th>
         <th class="grp" colspan="2">중앙청과㈜ (우리)</th><th class="grpw" colspan="2">원협노은(공)</th>
-        <th rowspan="2" style="width:10%">중앙<br>금액점유</th></tr>
+        <th rowspan="2" style="width:15%">경매사 · 중앙<br>금액점유</th></tr>
       <tr><th class="grp">물량(kg)</th><th class="grp">금액(원)</th><th class="grpw">물량(kg)</th><th class="grpw">금액(원)</th></tr>
     </thead><tbody>{arows}
       <tr class="corr"><td class="lbl">＋ 중앙 2/24 소실 보정 <span class="sub">(aT 원천 부재 · 회사 정산)</span></td><td class="colj">{kg(corr24['qty_kg'])}</td><td class="colj">{won(corr24['amount'])}</td><td class="colw">—</td><td class="colw">—</td><td class="pct p-mid">—</td></tr>
@@ -285,17 +253,6 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
       <tr class="total"><td class="lbl">상반기 누계</td><td>{eok(j26a)}억</td><td>{eok(w26a)}억</td><td class="pct">{amt_share26:.1f}%</td></tr>
     </tbody></table>
     <div class="note">→ 소실·과대집계 정정 후 <b>6개월 모두 중앙청과 우세</b>. (원협 4·5월 = aT유통공사 실적으로 교체)</div>
-  </section>
-  <section>
-    <div class="stitle">③ 작년 동기 대비 <small>2025 vs 2026, 1/1 ~ 6/30 상반기 누계 (중앙 : 원협)</small></div>
-    <table class="cmp"><thead><tr><th style="width:28%">구분</th><th>2025년 (작년)</th><th>2026년 (올해)</th><th style="width:22%">변화</th></tr></thead><tbody>
-      <tr><td class="lbl">물량 점유율 (중앙 : 원협)</td><td>{qty_share25:.1f} : {100-qty_share25:.1f}</td><td class="vj">{qty_share26:.1f} : {100-qty_share26:.1f}</td><td class="{'du' if qty_share26>=qty_share25 else 'dd'}">{'▲' if qty_share26>=qty_share25 else '▼'}</td></tr>
-      <tr><td class="lbl">금액 점유율 (중앙 : 원협)</td><td>{amt_share25:.1f} : {100-amt_share25:.1f}</td><td class="vj">{amt_share26:.1f} : {100-amt_share26:.1f}</td><td class="du">▲ 우세</td></tr>
-      <tr><td class="lbl">금액 격차 (중앙 − 원협)</td><td>+{gap25:.1f}억</td><td>+{gap26:.1f}억</td><td class="du">+{gap26-gap25:.1f}억 ▲</td></tr>
-      <tr><td class="lbl">중앙청과 금액 (누계)</td><td>{eok(j25a)}억</td><td>{eok(j26a)}억</td><td class="dd">{(j26a-j25a)/1e8:.1f}억</td></tr>
-      <tr><td class="lbl">원협노은 금액 (누계)</td><td>{eok(w25a)}억</td><td>{eok(w26a)}억</td><td class="dd">{(w26a-w25a)/1e8:.1f}억</td></tr>
-    </tbody></table>
-    <div class="note">→ 금액 점유율 {amt_share25:.1f}% → {amt_share26:.1f}% (우세 확대). 시세 약세로 양사 모두 감소했으나 <b>원협({(w26a-w25a)/1e8:.1f}억)이 중앙({(j26a-j25a)/1e8:.1f}억)보다 더 크게 감소</b> → 격차 +{gap25:.1f}억 → +{gap26:.1f}억.</div>
   </section>
   <div class="srcbox">
     <b>📌 데이터 출처·정정 안내</b> &nbsp;(값이 자료마다 다소 다를 수 있어 정정 기준을 명시)<br>
