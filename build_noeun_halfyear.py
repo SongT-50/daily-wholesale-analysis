@@ -297,7 +297,7 @@ if __name__ == "__main__":
     out_dir = os.path.join("C:/Users/samsung/2026/02/monet", "presentations",
                            "noeun-halfyear-2026-central-vs-wonhyup-2026-07-08")
     os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, "index.html")
+    out = os.path.join(out_dir, "경매사별 상반기.html")  # 태은이 리네임(2026-07-08) 반영
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
     dl = os.path.join(DL, "노은도매시장_거래현황_2026상반기_중앙vs원협_2026-07-08.html")
