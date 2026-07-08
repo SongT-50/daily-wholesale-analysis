@@ -115,13 +115,24 @@ def build():
 
     data, order, prods = auctioneer_halfyear()
     labels = sorted(order, key=lambda x: order[x])
-    # 미배정(있으면) 라벨을 나머지로 흡수하지 않고 맨 끝 처리
+    # ★'나머지'와 '미배정'을 한 행으로 합치고, 실제 품목을 괄호에 나열 (태은이 7/8)
     rows = []
+    rq = [0.0, 0.0]; rw = [0.0, 0.0]; rprod = defaultdict(float)
     for lb in labels:
         jq, ja = data[lb][J]; wq, wa = data[lb][W]
         if ja + wa <= 0:
             continue
-        rows.append((bn.clean_label(lb), prod_group(prods[lb]), jq, ja, wq, wa, pct(ja, wa)))
+        cl = bn.clean_label(lb)
+        if cl.startswith("나머지") or cl.startswith("미배정"):
+            rq[0] += jq; rq[1] += ja; rw[0] += wq; rw[1] += wa
+            for p, a in prods[lb].items():
+                rprod[p] += a
+            continue
+        rows.append((cl, prod_group(prods[lb]), jq, ja, wq, wa, pct(ja, wa)))
+    if rq[1] + rw[1] > 0:
+        top = [p for p, _ in sorted(rprod.items(), key=lambda x: -x[1])]
+        plist = "·".join(top[:12]) + (" 등" if len(top) > 12 else "")
+        rows.append(("나머지·미배정", plist, rq[0], rq[1], rw[0], rw[1], pct(rq[1], rw[1])))
     sja = sum(r[3] for r in rows); sjq = sum(r[2] for r in rows)
     swa = sum(r[5] for r in rows); swq = sum(r[4] for r in rows)
     corr24 = MDAYS["2026-02-24"]  # 중앙 2/24 보정
@@ -142,7 +153,8 @@ def build():
     # 경매사별 표 행
     arows = ""
     for nm, pg, jq, ja, wq, wa, p in rows:
-        arows += (f'<tr><td class="lbl">{nm} <span class="sub">({pg})</span></td>'
+        wrap = ' style="white-space:normal;line-height:1.3"' if nm.startswith("나머지") else ''
+        arows += (f'<tr><td class="lbl"{wrap}>{nm} <span class="sub">({pg})</span></td>'
                   f'<td class="colj">{kg(jq)}</td><td class="colj">{won(ja)}</td>'
                   f'<td class="colw">{kg(wq)}</td><td class="colw">{won(wa)}</td>'
                   f'<td class="pct {pcls(p)}"><span class="pnm">{nm}</span>{p:.1f}%</td></tr>')
