@@ -30,6 +30,10 @@ XLS = {4: os.path.join(DL, "도매시장 거래현황 2026-04-01-2026-04-30.xls"
        5: os.path.join(DL, "도매시장 거래현황 2026-05-01-2026-05-31.xls")}
 CORR = json.load(open(os.path.join(HERE, "corrections", "missing_corrections.json"), encoding="utf-8"))
 MDAYS = CORR["missing_days"]
+# 관리사업소 노은-오정 현황판(당월 시트 2026계 r9) 공식 월별 금액(억) = (중앙, 원협). 6월 미제공.
+# 출처: Downloads 노은-오정시장 현황판(2026년N월).xlsx 1~5월, 당월 시트 K9/M9(백만원→억).
+OFFICIAL = {1: (143.2, 131.7), 2: (166.4, 164.6), 3: (132.1, 122.5),
+            4: (128.8, 126.2), 5: (133.7, 126.8)}
 
 
 def xls_recs(mon):
@@ -137,17 +141,24 @@ def build():
     swa = sum(r[5] for r in rows); swq = sum(r[4] for r in rows)
     corr24 = MDAYS["2026-02-24"]  # 중앙 2/24 보정
 
-    # 월별 추이 행
+    # 월별 추이 행 (재집계 + 관리사업소 공식 병기)
     mrows = ""
     names = {1:"1월",2:"2월",3:"3월",4:"4월",5:"5월",6:"6월"}
     for m in range(1, 7):
         ja, jq, wa, wq = m26[m]
         sh = pct(ja, wa)
+        of = OFFICIAL.get(m)
+        ojt = f"{of[0]:.1f}" if of else "—"
+        owt = f"{of[1]:.1f}" if of else "—"
+        # 원협 재집계 vs 관리사업소 공식 차이 0.5억+ 강조(4·5월 온라인 차이)
+        wdiff = of and abs((wa / 1e8) - of[1]) >= 0.5
+        owstyle = ' style="color:#b45309;font-weight:700"' if wdiff else ''
         src = "aT유통공사" if m in (4, 5) else ("소실보정" if m == 2 else "")
-        cls = "p-win" if sh >= 50 else "p-lose"
         srctxt = f' <span class="sub">({src})</span>' if src else ""
+        cls = "p-win" if sh >= 50 else "p-lose"
         mrows += (f'<tr><td class="lbl">{names[m]}{srctxt}</td>'
-                  f'<td class="colj">{eok(ja)}억</td><td class="colw">{eok(wa)}억</td>'
+                  f'<td class="colj">{eok(ja)}</td><td class="colj offc">{ojt}</td>'
+                  f'<td class="colw">{eok(wa)}</td><td class="colw offc"{owstyle}>{owt}</td>'
                   f'<td class="pct {cls}">{sh:.1f}%</td></tr>')
 
     # 경매사별 표 행
@@ -211,6 +222,7 @@ td.lbl{{text-align:left;font-weight:700;font-size:11px;white-space:nowrap}}
 td.sub,span.sub{{font-size:9px;color:var(--sub);font-weight:500}}
 .colj{{background:#f7faff}}.colw{{background:#fdf6f0}}
 td.pct{{font-weight:800;text-align:center;font-size:12px}}
+td.offc{{color:#8a8a8a;font-size:11px}}
 .auc tbody td{{padding-top:6.5px;padding-bottom:6.5px}}
 .pct .pnm{{display:block;font-size:8.5px;font-weight:600;color:#555;margin-bottom:2px;line-height:1.12;white-space:normal;letter-spacing:-.2px}}
 .p-big .pnm,.p-lose .pnm{{color:#fff;opacity:.92}}
@@ -259,12 +271,14 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
     <div class="note">＊ 경매사(품목군)은 우리 회사 담당 기준으로 양사 품목을 같은 군으로 묶어 비교. 경매사별 소계는 aT 원천값(추적 가능), <b>중앙 2/24 소실 5.08억(244.7톤)은 aT에 없어 경매사별 미배분</b> → 별도 보정행으로 합계에 반영. 보정 후 합계 = 회사 월계표 공식(835.7억/38,241톤)과 일치.</div>
   </section>
   <section>
-    <div class="stitle">② 월별 흐름 <small>2026 1~6월, 중앙 vs 원협 금액(억) · 중앙 금액점유</small></div>
-    <table><thead><tr><th style="width:34%">월</th><th class="grp">중앙청과</th><th class="grpw">원협노은</th><th style="width:16%">중앙 점유</th></tr></thead>
-    <tbody>{mrows}
-      <tr class="total"><td class="lbl">상반기 누계</td><td>{eok(j26a)}억</td><td>{eok(w26a)}억</td><td class="pct">{amt_share26:.1f}%</td></tr>
+    <div class="stitle">② 월별 흐름 <small>2026 1~6월, 중앙 vs 원협 금액(억) · 재집계 / 관리사업소 공식 병기</small></div>
+    <table><thead>
+      <tr><th rowspan="2" style="width:18%">월</th><th class="grp" colspan="2">중앙청과 (억)</th><th class="grpw" colspan="2">원협노은 (억)</th><th rowspan="2" style="width:13%">중앙 점유</th></tr>
+      <tr><th class="grp">재집계</th><th class="grp">관리사업소</th><th class="grpw">재집계</th><th class="grpw">관리사업소</th></tr>
+    </thead><tbody>{mrows}
+      <tr class="total"><td class="lbl">상반기 누계</td><td>{eok(j26a)}</td><td>—</td><td>{eok(w26a)}</td><td>—</td><td class="pct">{amt_share26:.1f}%</td></tr>
     </tbody></table>
-    <div class="note">→ 소실·과대집계 정정 후 <b>6개월 모두 중앙청과 우세</b>. (원협 4·5월 = aT유통공사 실적으로 교체)</div>
+    <div class="note">→ 정정 후 <b>6개월 모두 중앙청과 우세</b>. <b>재집계</b>=우리 수집(원협 4·5월 aT유통공사) · <b>관리사업소</b>=노은시장 관리사업소 공식 현황판(1~5월 제공, 6월 미제공). <b style="color:#b45309">원협 4·5월</b>은 재집계(온라인 제외)가 관리사업소 공식보다 소폭 낮음(온라인 전자거래 차이, 약 3~4억/월).</div>
   </section>
   <div class="srcbox">
     <b>📌 데이터 출처·정정 안내</b> &nbsp;(값이 자료마다 다소 다를 수 있어 정정 기준을 명시)<br>
