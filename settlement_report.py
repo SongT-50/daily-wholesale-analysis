@@ -75,8 +75,12 @@ AUCTION_BLOCKS = [
     ("06", frozenset({"배", "사과"}), None, "이광진 부장"),
     ("06", frozenset({"듀리안", "레몬", "망고", "망고스턴", "바나나", "아로니아",
                       "아보카도", "오렌지", "용과", "자몽", "참다래(키위)", "체리",
-                      "코코넛", "탄제린", "파인애플"}), None, "(안대명, 심세영) 부장 (수입과일)"),
-    ("07", frozenset({"다래"}), None, "(안대명, 심세영) 부장 (수입과일)"),
+                      "코코넛", "탄제린", "파인애플"}), None, "(안대명, 심세영) 부장 (수입과일·수입땅콩)"),
+    ("07", frozenset({"다래"}), None, "(안대명, 심세영) 부장 (수입과일·수입땅콩)"),
+    # 태은이 2026-07-18 결재: 수입 땅콩 → 안대명·심세영 (수입과일과 같은 경매사).
+    #   대전 4법인 수입 땅콩은 전량 중국산·품종 '땅콩(수입)'으로 라벨 일치 → 국산 땅콩과 안전 분리.
+    #   판정은 load_day에서 수입 레코드의 product를 '수입땅콩'으로 재라벨(아래 _reclassify_import).
+    ("16", frozenset({"수입땅콩"}), None, "(안대명, 심세영) 부장 (수입과일·수입땅콩)"),
     ("04", frozenset({"메밀"}), None, "나머지 (땅콩·수삼·약용·메밀)"),
     ("16", None, None, "나머지 (땅콩·수삼·약용·메밀)"),
     ("18", None, None, "나머지 (땅콩·수삼·약용·메밀)"),
@@ -120,6 +124,24 @@ def auction_label_order(product, category_code):
     return _LABEL_ORDER[AUCTION_BLOCKS[bidx][3]]
 
 
+# 수입 땅콩 판정 (태은이 2026-07-18): 품종에 '수입' 또는 원산지가 외국이면 수입.
+#   대전 4법인은 두 신호가 일치(수입=전량 중국산·품종 '땅콩(수입)')라 오분류 위험 낮음.
+#   ※ 국산 땅콩(품종 일반/피땅콩/깐땅콩, 원산지 국내)은 재라벨하지 않아 '나머지'에 그대로 남는다.
+_IMPORT_ORIGIN_KEYS = ("중국", "미국", "수입", "태국", "인도", "베트남",
+                       "아르헨", "브라질", "남아", "호주", "볼리비아", "기타국가")
+
+
+def _reclassify_import(item: dict) -> dict:
+    """수입 땅콩이면 product를 '수입땅콩'으로 바꾼 사본 반환(원본 불변). 아니면 그대로."""
+    if (item.get("product") or "") != "땅콩":
+        return item
+    variety = item.get("variety") or ""
+    origin = item.get("origin") or ""
+    if "수입" in variety or any(k in origin for k in _IMPORT_ORIGIN_KEYS):
+        return {**item, "product": "수입땅콩"}
+    return item
+
+
 def load_day(d: date):
     """하루치 4법인 records 로드. 정산한 법인 집합 동반 반환.
     월별 하위폴더 구조(로컬)와 flat 구조(Actions data/) 모두 탐색."""
@@ -138,7 +160,7 @@ def load_day(d: date):
         if mk in data.get("markets", {}):
             for item in data["markets"][mk].get("items", []):
                 if item.get("corp_code") in DAEJEON_CORPS:
-                    records.append(item)
+                    records.append(_reclassify_import(item))
                     corps_present.add(item["corp_code"])
     return records, corps_present
 
