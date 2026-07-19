@@ -39,6 +39,9 @@ AUCTION_BLOCKS = [
     # 태은이 2026-07-18 결재: 송화신 이사 = 시간대(00:00 버섯·엽채 / 01:10 고추·파프리카) 나누지 말고
     #   하나로 합쳐 맨 앞칸에. 라벨을 '송화신 이사'로 통일 → 첫 블록(여기)이라 정렬 순서 0 = 첫칸.
     ("17", None, None, "송화신 이사"),
+    # 태은이 2026-07-19: 쌈배추(배추 품종)를 배추에서 분리 → 서병수·김선우 부장(김기영 아님).
+    #   _reclassify가 배추 품종 '쌈배추' 레코드의 product를 '쌈배추'로 재라벨 → 이 블록이 잡음.
+    ("10", frozenset({"쌈배추"}), None, "00:20 (서병수, 김선우) 부장"),
     ("10", None, frozenset({"갓", "배추", "숙주나물", "우엉대", "콩나물",
                             "토란대", "얼갈이배추", "열무", "양배추"}), "00:20 (서병수, 김선우) 부장"),
     ("11", frozenset({"삼채"}), None, "00:20 (서병수, 김선우) 부장"),
@@ -136,14 +139,19 @@ _IMPORT_ORIGIN_KEYS = ("중국", "미국", "수입", "태국", "인도", "베트
                        "아르헨", "브라질", "남아", "호주", "볼리비아", "기타국가")
 
 
-def _reclassify_import(item: dict) -> dict:
-    """수입 땅콩이면 product를 '수입땅콩'으로 바꾼 사본 반환(원본 불변). 아니면 그대로."""
-    if (item.get("product") or "") != "땅콩":
-        return item
+def _reclassify(item: dict) -> dict:
+    """정산 경매사 배정을 위해 특정 품종을 별도 product로 분리한 사본 반환(원본 불변).
+    - 땅콩: 수입(품종 '수입' 또는 원산지 외국) → '수입땅콩'(안대명·심세영) / 국산은 '땅콩' 유지(이기송).
+    - 배추: 품종 '쌈배추' → '쌈배추'(서병수·김선우) / 나머지 배추(봄·월동·일반 등)는 '배추' 유지(김기영).
+    태은이 2026-07-18(땅콩)·2026-07-19(쌈배추)."""
+    product = item.get("product") or ""
     variety = item.get("variety") or ""
-    origin = item.get("origin") or ""
-    if "수입" in variety or any(k in origin for k in _IMPORT_ORIGIN_KEYS):
-        return {**item, "product": "수입땅콩"}
+    if product == "땅콩":
+        origin = item.get("origin") or ""
+        if "수입" in variety or any(k in origin for k in _IMPORT_ORIGIN_KEYS):
+            return {**item, "product": "수입땅콩"}
+    elif product == "배추" and variety == "쌈배추":
+        return {**item, "product": "쌈배추"}
     return item
 
 
@@ -165,7 +173,7 @@ def load_day(d: date):
         if mk in data.get("markets", {}):
             for item in data["markets"][mk].get("items", []):
                 if item.get("corp_code") in DAEJEON_CORPS:
-                    records.append(_reclassify_import(item))
+                    records.append(_reclassify(item))
                     corps_present.add(item["corp_code"])
     return records, corps_present
 
