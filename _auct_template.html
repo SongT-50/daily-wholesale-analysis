@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상반기 경매사별 실적 — 대전중앙청과 (올해 @@YCUR@@ vs 작년 @@YPREV@@)</title>
+<style>
+  :root{--cur:#0072B2;--prev:#E69F00;--up:#1a7f52;--down:#C0392B;--line:#d9dbe3;--muted:#667;}
+  *{box-sizing:border-box;}
+  html,body{background:#fff;color:#1a1a1a;}
+  body{margin:0;font-family:'Pretendard','맑은 고딕','Malgun Gothic',sans-serif;line-height:1.5;padding:26px 30px;font-size:13px;}
+  .wrap{max-width:960px;margin:0 auto;}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.02em;}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:16px;}
+  h2{font-size:16px;margin:22px 0 9px;padding-bottom:5px;border-bottom:2px solid #222;}
+  .headline{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0;}
+  .hbox{flex:1;min-width:180px;border:1.5px solid var(--line);border-radius:10px;padding:12px 15px;background:#fafbfc;}
+  .hbox .lbl{font-size:11.5px;color:#556;}
+  .hbox .big{font-size:23px;font-weight:800;line-height:1.25;}
+  .hbox .small{font-size:11.5px;color:#556;margin-top:3px;}
+  .up{color:var(--up);} .down{color:var(--down);}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;}
+  th,td{padding:6px 7px;text-align:right;border:1px solid var(--line);white-space:nowrap;}
+  th:nth-child(2),td:nth-child(2){text-align:left;white-space:normal;}
+  th:first-child,td:first-child{text-align:left;}
+  thead th{background:#f2f3f7;font-weight:700;font-size:11px;color:#333;}
+  tfoot tr.real td{background:#e5eef6;font-weight:800;}
+  .cur{color:var(--cur);font-weight:700;}
+  .prev{color:var(--prev);font-weight:700;}
+  .pos{color:var(--up);font-weight:700;} .neg{color:var(--down);font-weight:700;}
+  .prod{color:#778;font-size:10.5px;}
+  tr.faint td{color:#8890a0;background:#fbfbfc;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin:8px 0;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sw{width:13px;height:13px;border-radius:3px;display:inline-block;}
+  .hl{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 2px;}
+  .hlbox{flex:1;min-width:210px;border-radius:8px;padding:10px 14px;font-size:12.5px;}
+  .hlbox.g{background:#eef6f1;border:1px solid #bfe0cf;}
+  .hlbox.r{background:#fbeeec;border:1px solid #e6c4bd;}
+  .hlbox b{font-size:14px;}
+  .note{color:var(--muted);font-size:11px;margin-top:8px;line-height:1.6;}
+  .note b{color:#444;}
+  .warn{background:#eef6f1;border:1px solid #bfe0cf;border-radius:8px;padding:9px 13px;font-size:11.5px;color:#2a5c40;margin:8px 0;}
+  svg text{font-family:'Pretendard','맑은 고딕',sans-serif;}
+  @media print{@page{size:A4 portrait;margin:10mm;}body{padding:0;font-size:10.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}h2{margin:13px 0 6px;}table,.card,svg{page-break-inside:avoid;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>상반기 경매사별 실적 — 대전중앙청과</h1>
+  <div class="sub">올해(@@YCUR@@) vs 작년(@@YPREV@@) · <b>1~6월 누계</b> · 노은도매시장 대전중앙청과 · 단위 억원 / 톤<br>
+  <b>회사 정산 실제값 기준</b>(aT 집계 + 소실일 실제값 배분) · 경매사 = 현재(관리사무소 공식 정렬) 배정 기준 · <b>@@TODAY@@ 자동 재계산</b>(생성기 build_auctioneer_halfyear.py)</div>
+
+  <div class="headline">
+    <div class="hbox">
+      <div class="lbl">전체 금액 (올해 상반기, 실제)</div>
+      <div class="big cur">@@CUR_AMT@@<span style="font-size:14px;"> 억</span></div>
+      <div class="small">작년 @@PREV_AMT@@억 · @@AMT_ARROW@@</div>
+    </div>
+    <div class="hbox">
+      <div class="lbl">전체 물량 (올해 상반기, 실제)</div>
+      <div class="big" style="color:#b9770e;">@@CUR_QTY@@<span style="font-size:14px;"> 톤</span></div>
+      <div class="small">작년 @@PREV_QTY@@톤 · @@QTY_ARROW@@</div>
+    </div>
+    <div class="hbox">
+      <div class="lbl">평균 단가 (금액÷물량)</div>
+      <div class="big">@@CUR_UP@@<span style="font-size:14px;"> 원/kg</span></div>
+      <div class="small">작년 @@PREV_UP@@원 · @@UP_ARROW@@</div>
+    </div>
+  </div>
+
+  <div class="warn">
+    ✅ <b>소실 데이터 반영 완료</b>: aT 원천에서 빠졌던 중앙청과 소실일(작년 1/3·1/4·1/7·1/9 = @@LOSS_PREV_A@@억/@@LOSS_PREV_Q@@톤, 올해 2/24 = @@LOSS_CUR_A@@억/@@LOSS_CUR_Q@@톤)을 <b>회사 정산 자료</b>로 확보해, 1/6 대조로 품목→경매사 매핑을 학습한 뒤 <b>경매사별로 배분</b>했어. 아래 표·그래프는 그 실제값 기준이야. (특수품목 허브·두부·묵류 등은 '소실 미배분'으로 별도.) 원협 소실 1/6·1/7·1/8은 data.go.kr에서 복구 반영.
+  </div>
+
+  <div class="hl">
+    <div class="hlbox g">📈 가장 큰 상승 — <b class="up">@@TOP_UP_NAME@@ @@TOP_UP_D@@억</b> (@@TOP_UP_P@@). 작년 대비 실적 증가 폭이 가장 큼.</div>
+    <div class="hlbox r">📉 가장 큰 하락 — <b class="down">@@TOP_DN_NAME@@ @@TOP_DN_D@@억</b> (@@TOP_DN_P@@). 작년 대비 실적 감소 폭이 가장 큼.</div>
+  </div>
+
+  <div class="note" style="margin-bottom:4px;">
+    한 줄 요약: <b>물량은 @@QTY_PCT@@% @@QTY_WORD@@, kg당 단가는 @@UP_PCT@@% @@UP_WORD@@ → 상반기 금액은 작년보다 @@AMT_PCT@@%(@@AMT_ARROW_SHORT@@) @@AMT_WORD@@.</b>
+    (금액 = 물량 × 단가. 물량·단가 어느 쪽이 실적을 끌었는지 함께 봐야 정확.)
+  </div>
+
+  <h2>1. 경매사별 상반기 실적 (올해 vs 작년, 실제값)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="2">경매사</th><th rowspan="2">담당 품목(예시)</th>
+        <th colspan="3">금액 (억원)</th>
+        <th colspan="3">물량 (톤)</th>
+      </tr>
+      <tr>
+        <th class="cur">올해</th><th class="prev">작년</th><th>증감</th>
+        <th class="cur">올해</th><th class="prev">작년</th><th>증감%</th>
+      </tr>
+    </thead>
+    <tbody id="tb"></tbody>
+    <tfoot id="tf"></tfoot>
+  </table>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--cur)"></i> 올해(@@YCUR@@)</span>
+    <span><i class="sw" style="background:var(--prev)"></i> 작년(@@YPREV@@)</span>
+    <span style="color:var(--muted)">증감 초록=증가 / 빨강=감소 · 옅은 행=미배정·소실미배분</span>
+  </div>
+
+  <h2>2. 경매사별 금액 비교 그래프 (올해 vs 작년, 억원 · 실제값)</h2>
+  <div class="card">
+    <svg id="chart" style="width:100%;height:auto;"></svg>
+    <div class="note">막대 = 상반기 금액(억원, 위=올해 파랑 / 아래=작년 주황). 금액 큰 경매사부터. <b>오른쪽 배지 = 작년 대비 증감</b>(▲초록 증가 / ▼빨강 감소).</div>
+  </div>
+
+  <h2>3. 소실일 실제값 (회사 정산 자료 — 경매사 배분 근거)</h2>
+  <table style="width:auto;min-width:440px;font-size:11.5px;">
+    <thead><tr><th>중앙 소실일 (aT 누락)</th><th>실제 금액</th><th>실제 물량</th><th>출처</th></tr></thead>
+    <tbody>
+@@LOSS_HTML@@
+    </tbody>
+  </table>
+
+  <div class="note">
+    <b>주의(정직 표기)</b>: ① 경매사 배정은 현재(관리사무소 공식 정렬) 기준 — 작년도 "지금 그 경매사 담당 품목군"으로 환산.
+    ② 소실일 배분은 회사 정산 자료 품목을 1/6(회사=aT 일치) 대조로 매핑해 나눔 — 특수품목 일부(허브·두부 등)는 '소실 미배분'. ③ 영업일 올해 @@DAYS_CUR@@ vs 작년 @@DAYS_PREV@@.
+    ④ 출처: aT katSale + 회사 정산 자료. 집계 총액(올해 @@CUR_AMT@@억·작년 @@PREV_AMT@@억)은 회사 월계표 공식(올해 @@LEDGER_CUR@@억·작년 @@LEDGER_PREV@@억)과 0.1억 이내 일치(경매사별 반올림 합산 차).
+    ⑤ 경매사 배정은 관리사무소 공식 자료(경매사별품목.xls)로 정렬된 최신 기준이며, 배정이 바뀌면 이 보고서는 <b>생성기 재실행으로 자동 반영</b>돼(정적 수정 아님).
+  </div>
+  <div class="no-print" style="margin-top:14px;color:#999;font-size:11.5px;">※ 인쇄: Ctrl+P → 배경 그래픽 켜기 · A4 세로</div>
+  <div style="margin-top:16px;padding-top:8px;border-top:1px solid #e3e5ec;color:#99a;font-size:10.5px;text-align:right;">제작 터미널: WHOLESALE-T3 · @@TODAY@@</div>
+</div>
+<script>
+// 경매사별 실제값 (aT 집계 + 소실일 실제값 배분) — build_auctioneer_halfyear.py 자동 생성.
+// base = 로컬 아카이브 agg_auctioneer(현재 AUCTION_BLOCKS 배정) + 소실 배분(회사 정산 xlsx).
+const DATA=[
+@@DATA_JS@@
+];
+const tb=document.getElementById('tb');
+let sca=0,spa=0,scq=0,spq=0;
+DATA.forEach(r=>{
+  const d=r.ca-r.pa, pct=r.pa? (d/r.pa*100):0;
+  sca+=r.ca; spa+=r.pa; scq+=r.cq; spq+=r.pq;
+  const dcls=d>=0?'pos':'neg', dsign=d>=0?'＋':'−';
+  const qcls=(r.cq-r.pq)>=0?'pos':'neg', qp=r.pq?((r.cq-r.pq)/r.pq*100):0;
+  tb.insertAdjacentHTML('beforeend',
+   `<tr class="${r.faint?'faint':''}"><td>${r.n}</td><td class="prod">${r.p}</td>
+     <td class="cur">${r.ca.toFixed(1)}</td><td class="prev">${r.pa.toFixed(1)}</td>
+     <td class="${dcls}">${dsign}${Math.abs(d).toFixed(1)} <span style="font-size:10px">(${pct>=0?'+':''}${pct.toFixed(0)}%)</span></td>
+     <td class="cur">${r.cq.toLocaleString()}</td><td class="prev">${r.pq.toLocaleString()}</td><td class="${qcls}">${qp>=0?'+':''}${qp.toFixed(1)}%</td></tr>`);
+});
+const tot_d=sca-spa, tot_dcls=tot_d>=0?'pos':'neg', tot_ds=tot_d>=0?'＋':'−';
+const tot_qp=spq?((scq-spq)/spq*100):0, tot_qcls=(scq-spq)>=0?'pos':'neg';
+document.getElementById('tf').innerHTML=
+  `<tr class="real"><td>합계</td><td style="text-align:left;color:#334">노은 대전중앙청과 (실제값)</td>
+    <td class="cur">${sca.toFixed(0)}</td><td class="prev">${spa.toFixed(0)}</td>
+    <td class="${tot_dcls}">${tot_ds}${Math.abs(tot_d).toFixed(1)} <span style="font-size:10px">(${((sca-spa)/spa*100).toFixed(1)}%)</span></td>
+    <td class="cur">${Math.round(scq).toLocaleString()}</td><td class="prev">${Math.round(spq).toLocaleString()}</td>
+    <td class="${tot_qcls}">${tot_qp>=0?'+':''}${tot_qp.toFixed(1)}%</td></tr>`;
+
+// 그래프: 금액 큰 순 (미배정·미배분 제외) — 크게·두껍게·증감 배지
+const rows=DATA.filter(r=>!r.faint).slice().sort((a,b)=>b.ca-a.ca);
+const svg=document.getElementById('chart');
+const padL=150, padR=94, padT=24, padB=42, rowH=54, barH=16, maxV=130;
+const W=940, H=padT+rowH*rows.length+padB, plotW=W-padL-padR;
+svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+svg.setAttribute('width',W); svg.setAttribute('height',H);
+const sx=v=>padL+(v/maxV)*plotW;
+let g='';
+for(let k=0;k<=120;k+=20){const x=sx(k);
+  g+=`<line x1="${x}" y1="${padT-6}" x2="${x}" y2="${padT+rowH*rows.length}" stroke="#edeff4" stroke-width="1"/>`;
+  g+=`<text x="${x}" y="${padT+rowH*rows.length+19}" fill="#aab" font-size="11" text-anchor="middle">${k}</text>`;}
+g+=`<text x="${padL+plotW/2}" y="${H-7}" fill="#889" font-size="11.5" text-anchor="middle">상반기 금액 (억원)</text>`;
+rows.forEach((r,i)=>{
+  const top=padT+rowH*i, mid=top+rowH/2, d=r.ca-r.pa, up=d>=0;
+  if(i>0) g+=`<line x1="0" y1="${top}" x2="${W}" y2="${top}" stroke="#f4f5f8"/>`;
+  g+=`<text x="${padL-12}" y="${mid}" fill="#1a1a1a" font-size="12.5" font-weight="600" text-anchor="end" dominant-baseline="middle">${r.n}</text>`;
+  const wC=(r.ca/maxV)*plotW, yC=mid-barH-2;
+  g+=`<rect x="${padL}" y="${yC}" width="${wC}" height="${barH}" fill="#0072B2" rx="3"/>`;
+  g+=`<text x="${padL+wC+6}" y="${yC+barH/2+0.5}" fill="#0072B2" font-size="11.5" font-weight="800" dominant-baseline="middle">${r.ca.toFixed(0)}</text>`;
+  const wP=(r.pa/maxV)*plotW, yP=mid+2;
+  g+=`<rect x="${padL}" y="${yP}" width="${wP}" height="${barH}" fill="#E69F00" rx="3"/>`;
+  g+=`<text x="${padL+wP+6}" y="${yP+barH/2+0.5}" fill="#B9770E" font-size="11.5" font-weight="800" dominant-baseline="middle">${r.pa.toFixed(0)}</text>`;
+  const bx=W-padR+10, bw=padR-16;
+  g+=`<rect x="${bx}" y="${mid-13}" width="${bw}" height="26" rx="7" fill="${up?'#eaf6ef':'#fbeeec'}" stroke="${up?'#bfe0cf':'#e6c4bd'}" stroke-width="1"/>`;
+  g+=`<text x="${bx+bw/2}" y="${mid+0.5}" fill="${up?'#1a7f52':'#C0392B'}" font-size="12" font-weight="800" text-anchor="middle" dominant-baseline="middle">${up?'▲＋':'▼−'}${Math.abs(d).toFixed(1)}</text>`;
+});
+svg.innerHTML=g;
+</script>
+</body>
+</html>

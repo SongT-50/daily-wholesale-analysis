@@ -5,3 +5,8 @@ data/*.json
 __pycache__/
 *.pyc
 .env
+
+# auctioneer-halfyear 생성기 로컬 아티팩트 (재생성 가능)
+_auct_cache.json
+_auct_check.txt
+_auct_saved.txt
