@@ -4,7 +4,7 @@
 import json, os
 from datetime import date
 
-SCR = "C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/42e5fa00-ba61-4d87-863d-64f49b83cc1e/scratchpad/as_corrected.json"
+SCR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_as_corrected.json")
 d = json.load(open(SCR, encoding="utf-8"))
 rows, days = d["rows"], d["days"]
 
@@ -94,7 +94,7 @@ html = f"""<!doctype html>
       <td class="num share"><b>{j_share:.1f}%</b> : {100-j_share:.1f}%</td></tr></tfoot>
   </table>
   <div class="note">
-    <b>집계 기준</b> · 안대명·심세영 부장 담당 수입과일류 + 다래 + 수입땅콩·수입곶감·수입호두. <b>점유율은 금액 기준</b>(중앙금액 ÷ 두 법인 합).
+    <b>집계 기준</b> · 안대명·심세영 부장 담당 수입과일류 + 다래 + 수입땅콩·수입곶감·수입호두·<b>수입포도·수입블루베리·수입멜론</b>(2026-07-21 추가). <b>점유율은 금액 기준</b>(중앙금액 ÷ 두 법인 합). 수입 판정 = 품종 '(수입)' 또는 원산지 외국(국산 포도·블루베리·멜론은 제외 — 각 원래 경매사 소관).
     <br><span class="warn">★ 원협 4·5월 보정</span> — data.go.kr 아카이브는 원협 4·5월을 계통출하 이중집계로 과대 반영(금액 4월 +47.8%·5월 +20.3%). 이 표는 <b>aT유통공사 도매시장 거래현황(실거래) .xls</b>로 교체. 중앙청과·원협 1·2·3·6월은 아카이브(공식 일치).
     <br>※ 안대명·심세영은 중앙청과 경매사. 원협 열은 같은 품목의 원협 실적(원협은 별도 경매사 소관).
   </div>

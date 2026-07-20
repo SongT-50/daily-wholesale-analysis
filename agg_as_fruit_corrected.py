@@ -6,7 +6,8 @@ import pandas as pd
 from settlement_report import load_range
 J,W="25000301","25000302"
 AS15={"듀리안","레몬","망고","망고스턴","바나나","아로니아","아보카도","오렌지","용과","자몽","참다래(키위)","체리","코코넛","탄제린","파인애플"}
-ASX=AS15|{"다래","수입땅콩","수입곶감","수입호두"}
+# 태은이 2026-07-21: 수입 포도·블루베리·멜론 추가(안대명·심세영). product는 _reclassify 거친 값.
+ASX=AS15|{"다래","수입땅콩","수입곶감","수입호두","수입포도","수입블루베리","수입멜론"}
 XLS={4:"C:/Users/samsung/Downloads/도매시장 거래현황 2026-04-01-2026-04-30.xls",
      5:"C:/Users/samsung/Downloads/도매시장 거래현황 2026-05-01-2026-05-31.xls"}
 def num(v):
@@ -33,10 +34,15 @@ for mm in (4,5):
         elif prod=="땅콩" and "수입" in var: key="수입땅콩"
         elif prod=="곶감" and "수입" in var: key="수입곶감"
         elif prod=="호두" and "수입" in var: key="수입호두"
+        elif prod=="포도" and "수입" in var: key="수입포도"
+        elif prod=="블루베리" and "수입" in var: key="수입블루베리"
+        elif prod=="멜론" and "수입" in var: key="수입멜론"
         if key: won[key][0]+=a;won[key][1]+=q
 prods=sorted(set(central)|set(won), key=lambda p:-(central[p][1]+won[p][1]))
 rows=[{"product":p,"c":central[p],"w":won[p]} for p in prods]
-json.dump({"rows":rows,"days":days},open("C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/42e5fa00-ba61-4d87-863d-64f49b83cc1e/scratchpad/as_corrected.json","w",encoding="utf-8"),ensure_ascii=False)
+import os as _os
+_OUT=_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),"_as_corrected.json")
+json.dump({"rows":rows,"days":days},open(_OUT,"w",encoding="utf-8"),ensure_ascii=False)
 cs=sum(r["c"][1] for r in rows);ws=sum(r["w"][1] for r in rows)
 ca=sum(r["c"][0] for r in rows);wa=sum(r["w"][0] for r in rows)
 print(f"DONE 중앙 {ca/1e8:.1f}억/{cs/1000:.0f}톤 · 원협 {wa/1e8:.1f}억/{ws/1000:.0f}톤 · 원협금액비중 {wa/(ca+wa)*100:.1f}%")
