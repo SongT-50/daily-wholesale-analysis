@@ -36,6 +36,9 @@ MDAYS = CORR["missing_days"]
 # ★공식 상반기 누계(현황판 청과부문 누계 시트): 중앙 835.78억/38,243t · 원협 790.53억/33,311t.
 OFFICIAL = {1: (143.2, 131.7), 2: (166.4, 164.6), 3: (132.1, 122.5),
             4: (128.8, 126.2), 5: (133.7, 126.8), 6: (131.5, 118.7)}
+# 관리사업소 공식 상반기 누계(현황판 청과부문 누계 시트, 2026, 온라인 전자거래 포함 = 가장 정확).
+# = 헤드라인 대표수치. 물량 톤·금액 억.
+OFFICIAL_TOTAL = {'j_a': 835.78, 'j_q': 38243, 'w_a': 790.53, 'w_q': 33311}
 
 
 def xls_recs(mon):
@@ -118,8 +121,15 @@ def build():
     w26a = sum(v[2] for v in m26.values()); w26q = sum(v[3] for v in m26.values())
     amt_share26 = pct(j26a, w26a); qty_share26 = pct(j26q, w26q)
     gap26 = (j26a - w26a) / 1e8
-    off_j = sum(v[0] for v in OFFICIAL.values())  # 관리사업소 공식 상반기 누계 중앙(억)
-    off_w = sum(v[1] for v in OFFICIAL.values())  # 관리사업소 공식 상반기 누계 원협(억) = 790.5
+    off_j = sum(v[0] for v in OFFICIAL.values())  # 관리사업소 공식 월별합 중앙(억)
+    off_w = sum(v[1] for v in OFFICIAL.values())  # 관리사업소 공식 월별합 원협(억) ≈ 790.5
+    # ★헤드라인 대표수치 = 관리사업소 공식 누계(현황판, 온라인 등 전량 포함 = 가장 정확).
+    #   재집계(j26a/w26a)는 아래 월별 흐름·경매사별 표에만(품목별 쪼개기엔 aT item-level 필요).
+    hj_a, hw_a = OFFICIAL_TOTAL['j_a'], OFFICIAL_TOTAL['w_a']
+    hj_q, hw_q = OFFICIAL_TOTAL['j_q'], OFFICIAL_TOTAL['w_q']
+    h_amt = hj_a / (hj_a + hw_a) * 100
+    h_qty = hj_q / (hj_q + hw_q) * 100
+    h_gap = hj_a - hw_a
 
     data, order, prods = auctioneer_halfyear()
     labels = sorted(order, key=lambda x: order[x])
@@ -255,10 +265,10 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
     <div class="dash-h">📌 한눈에 보는 결론 — 2026 상반기 (1~6월 누계)</div>
     <div class="kpis">
       <div><div class="kpi-t"><span>물량 점유</span><span class="win">중앙 우세</span></div>
-        <div class="bar"><span class="bj" style="width:{qty_share26:.1f}%">중앙 {qty_share26:.1f}%</span><span class="bw" style="width:{100-qty_share26:.1f}%">원협 {100-qty_share26:.1f}%</span></div></div>
+        <div class="bar"><span class="bj" style="width:{h_qty:.1f}%">중앙 {h_qty:.1f}%</span><span class="bw" style="width:{100-h_qty:.1f}%">원협 {100-h_qty:.1f}%</span></div></div>
       <div><div class="kpi-t"><span>금액 점유</span><span class="win">중앙 우세</span></div>
-        <div class="bar"><span class="bj" style="width:{amt_share26:.1f}%">중앙 {amt_share26:.1f}%</span><span class="bw" style="width:{100-amt_share26:.1f}%">원협 {100-amt_share26:.1f}%</span></div>
-        <div class="kpi-sub">중앙 <b>{eok(j26a)}억</b> vs 원협 <b>{eok(w26a)}억</b> &nbsp;( ＋{gap26:.1f}억 )</div></div>
+        <div class="bar"><span class="bj" style="width:{h_amt:.1f}%">중앙 {h_amt:.1f}%</span><span class="bw" style="width:{100-h_amt:.1f}%">원협 {100-h_amt:.1f}%</span></div>
+        <div class="kpi-sub">중앙 <b>{hj_a:.1f}억</b> vs 원협 <b>{hw_a:.1f}억</b> &nbsp;( ＋{h_gap:.1f}억 ) <span class="sub">관리사업소 공식</span></div></div>
     </div>
   </div>
   <section>
@@ -282,7 +292,7 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
     </thead><tbody>{mrows}
       <tr class="total"><td class="lbl">상반기 누계</td><td>{eok(j26a)}</td><td>{off_j:.1f}</td><td>{eok(w26a)}</td><td>{off_w:.1f}</td><td class="pct">{amt_share26:.1f}%</td></tr>
     </tbody></table>
-    <div class="note">→ 정정 후 <b>6개월 모두 중앙청과 우세</b>. <b>재집계</b>=우리 수집(원협 4·5월 aT유통공사) · <b>관리사업소</b>=노은시장 관리사업소 공식 현황판(<b>1~6월 전부 제공</b>). <b>공식 상반기 누계 = 중앙 {off_j:.1f}억 · 원협 {off_w:.1f}억</b>(원협 재집계 {eok(w26a)}억은 4·5월 aT유통공사가 <b style="color:#b45309">온라인 전자거래</b>를 빼서 공식보다 약 5억 낮음 — 공식이 더 완전).</div>
+    <div class="note">→ 정정 후 <b>6개월 모두 중앙청과 우세</b>. <b>재집계</b>=우리 수집(원협 4·5월 aT유통공사) · <b>관리사업소</b>=노은시장 관리사업소 공식 현황판(<b>1~6월 전부 제공</b>). <b>공식 상반기 누계 = 중앙 {off_j:.1f}억 · 원협 {off_w:.1f}억</b>(헤드라인 대표수치). 원협 재집계 {eok(w26a)}억은 4·5월 aT유통공사(경매+정가수의)가 <b style="color:#b45309">관리사업소보다 좁게 집계</b>해 약 5억 낮음 — <b>공식이 더 완전</b>. 그 5억의 정체(온라인 등)는 원협 확인 필요.</div>
   </section>
   <div class="srcbox">
     <b>📌 데이터 출처·정정 안내</b> &nbsp;(값이 자료마다 다소 다를 수 있어 정정 기준을 명시)<br>
