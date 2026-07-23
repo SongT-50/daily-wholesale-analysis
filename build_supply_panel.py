@@ -30,7 +30,7 @@ else:
         f.write("date,market,product,total_qty,total_amount,avg_price\n")
 
 months=[]
-for y in (2024,2025,2026):
+for y in (2018,2019,2020,2021,2022,2023,2024,2025,2026):
     for m in range(1,13):
         if y==2026 and m>6: break
         months.append(f"{y}-{m:02d}")
@@ -58,4 +58,19 @@ for mo in months:
         for (d,g,p),(q,a) in sorted(agg.items()):
             fo.write(f"{d},{g},{p},{round(q,1)},{int(a)},{round(a/q,1) if q else ''}\n")
     log(f"done {mo}: {nf}파일 {len(agg)}행")
+
+# DEDUP FINAL: 재개/중단 중 월 중복append 방지(모든 값 동일이라 안전). 완료 후 1회 정리.
+import csv as _csv
+_seen=set();_out=[]
+with open(OUT,encoding="utf-8") as _f:
+    _rd=_csv.reader(_f);_h=next(_rd)
+    for _row in _rd:
+        _k=(_row[0],_row[1],_row[2])
+        if _k in _seen:continue
+        _seen.add(_k);_out.append(_row)
+_out.sort(key=lambda r:(r[0],r[1],r[2]))
+with open(OUT,"w",encoding="utf-8",newline="") as _f:
+    _w=_csv.writer(_f);_w.writerow(_h);_w.writerows(_out)
+log(f"DEDUP FINAL: {len(_out)}행")
+
 log("ALL DONE")
