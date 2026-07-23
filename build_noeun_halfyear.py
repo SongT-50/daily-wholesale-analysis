@@ -182,7 +182,7 @@ def build():
         arows += (f'<tr><td class="lbl"{wrap}>{nm} <span class="sub">({pg})</span></td>'
                   f'<td class="colj">{kg(jq)}</td><td class="colj">{won(ja)}</td>'
                   f'<td class="colw">{kg(wq)}</td><td class="colw">{won(wa)}</td>'
-                  f'<td class="pct {pcls(p)}"><span class="pnm">{nm}</span>{p:.1f}%</td></tr>')
+                  f'<td class="pct">{p:.1f}%</td></tr>')  # 태은이 2026-07-23: 파랑/주황 배경·경매사명 강조 제거 → 비율 글자만
 
     HTML = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
