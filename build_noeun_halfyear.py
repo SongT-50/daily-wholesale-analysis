@@ -30,10 +30,12 @@ XLS = {4: os.path.join(DL, "도매시장 거래현황 2026-04-01-2026-04-30.xls"
        5: os.path.join(DL, "도매시장 거래현황 2026-05-01-2026-05-31.xls")}
 CORR = json.load(open(os.path.join(HERE, "corrections", "missing_corrections.json"), encoding="utf-8"))
 MDAYS = CORR["missing_days"]
-# 관리사업소 노은-오정 현황판(당월 시트 2026계 r9) 공식 월별 금액(억) = (중앙, 원협). 6월 미제공.
-# 출처: Downloads 노은-오정시장 현황판(2026년N월).xlsx 1~5월, 당월 시트 K9/M9(백만원→억).
+# 관리사업소 노은-오정 현황판(당월 시트 2026계 r9) 공식 월별 금액(억) = (중앙, 원협).
+# 출처: Downloads 노은-오정시장 현황판(2026년N월).xlsx 1~6월, 당월 시트 K9/M9(백만원→억).
+# 6월=2026-07-23 추가(현황판 6월 당월 중앙 13,146백만=131.5억·원협 11,867백만=118.7억).
+# ★공식 상반기 누계(현황판 청과부문 누계 시트): 중앙 835.78억/38,243t · 원협 790.53억/33,311t.
 OFFICIAL = {1: (143.2, 131.7), 2: (166.4, 164.6), 3: (132.1, 122.5),
-            4: (128.8, 126.2), 5: (133.7, 126.8)}
+            4: (128.8, 126.2), 5: (133.7, 126.8), 6: (131.5, 118.7)}
 
 
 def xls_recs(mon):
@@ -116,6 +118,8 @@ def build():
     w26a = sum(v[2] for v in m26.values()); w26q = sum(v[3] for v in m26.values())
     amt_share26 = pct(j26a, w26a); qty_share26 = pct(j26q, w26q)
     gap26 = (j26a - w26a) / 1e8
+    off_j = sum(v[0] for v in OFFICIAL.values())  # 관리사업소 공식 상반기 누계 중앙(억)
+    off_w = sum(v[1] for v in OFFICIAL.values())  # 관리사업소 공식 상반기 누계 원협(억) = 790.5
 
     data, order, prods = auctioneer_halfyear()
     labels = sorted(order, key=lambda x: order[x])
@@ -276,9 +280,9 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
       <tr><th rowspan="2" style="width:18%">월</th><th class="grp" colspan="2">중앙청과 (억)</th><th class="grpw" colspan="2">원협노은 (억)</th><th rowspan="2" style="width:13%">중앙 점유</th></tr>
       <tr><th class="grp">재집계</th><th class="grp">관리사업소</th><th class="grpw">재집계</th><th class="grpw">관리사업소</th></tr>
     </thead><tbody>{mrows}
-      <tr class="total"><td class="lbl">상반기 누계</td><td>{eok(j26a)}</td><td>—</td><td>{eok(w26a)}</td><td>—</td><td class="pct">{amt_share26:.1f}%</td></tr>
+      <tr class="total"><td class="lbl">상반기 누계</td><td>{eok(j26a)}</td><td>{off_j:.1f}</td><td>{eok(w26a)}</td><td>{off_w:.1f}</td><td class="pct">{amt_share26:.1f}%</td></tr>
     </tbody></table>
-    <div class="note">→ 정정 후 <b>6개월 모두 중앙청과 우세</b>. <b>재집계</b>=우리 수집(원협 4·5월 aT유통공사) · <b>관리사업소</b>=노은시장 관리사업소 공식 현황판(1~5월 제공, 6월 미제공). <b style="color:#b45309">원협 4·5월</b>은 재집계(온라인 제외)가 관리사업소 공식보다 소폭 낮음(온라인 전자거래 차이, 약 3~4억/월).</div>
+    <div class="note">→ 정정 후 <b>6개월 모두 중앙청과 우세</b>. <b>재집계</b>=우리 수집(원협 4·5월 aT유통공사) · <b>관리사업소</b>=노은시장 관리사업소 공식 현황판(<b>1~6월 전부 제공</b>). <b>공식 상반기 누계 = 중앙 {off_j:.1f}억 · 원협 {off_w:.1f}억</b>(원협 재집계 {eok(w26a)}억은 4·5월 aT유통공사가 <b style="color:#b45309">온라인 전자거래</b>를 빼서 공식보다 약 5억 낮음 — 공식이 더 완전).</div>
   </section>
   <div class="srcbox">
     <b>📌 데이터 출처·정정 안내</b> &nbsp;(값이 자료마다 다소 다를 수 있어 정정 기준을 명시)<br>
