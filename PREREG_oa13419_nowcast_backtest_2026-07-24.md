@@ -68,7 +68,8 @@
 - 조인이 재는 것 = **본품 반입[t] → 본품 가격[t+1]** (열무·알타리 등 제외한 좁고 일관된 질문).
 
 ### (c) ★계절 baseline 격상 (원 §3 baseline 대체)
-- **탈계절화**: 가락 반입 TOT·대전 avg_price **각 시계열의 자기 월 climatology**로 z-score. z = (x − μ[품목,월]) / σ[품목,월]. μ/σ = 겹침기간 8년 품목×월 평균·표준편차, **각 시계열에서 직접 산출**(반입은 반입 own, 가격은 가격 own).
+- **탈계절화**: 가락 반입 TOT·대전 avg_price **각 시계열의 자기 월 climatology**로 z-score. z = (x − μ[품목,월]) / σ[품목,월]. μ/σ = 품목×월 평균·표준편차, **각 시계열에서 직접 산출**(반입은 반입 own, 가격은 가격 own).
+- 🔴 **expanding-window(train-only) 의무 (CS #6509 catch)**: μ/σ는 **각 시점 t까지의 과거 데이터로만** 산출(각 예측 시점에서 미래 미포함). full-sample 월mean/std 금지 = 미래 계절구조 누수(seasonal-z lookahead, 익일예측 v2 CO MAJOR2와 동형). AR(1) baseline·탈계절 climatology **둘 다 expanding**이어야 반쪽 아님. 최소 warmup(품목별 첫 1~2년)은 산출 불가구간이라 예측대상서 제외.
   - ⚠️ CS seasonal_baseline.json은 **공급(물량) 단위**라 가격 탈계절엔 부적합 → 두 시계열 각자 climatology 자체 산출(방법론 선택, CS #6506에 공유).
 - **Baseline(귀무)** = 탈계절 대전가격 z[t+1] 방향을 z[t]·z[t−1]에서 예측(AR on deseasonalized price).
 - **Test** = baseline + 탈계절 가락 반입 z[t] (수준 + Δ).
