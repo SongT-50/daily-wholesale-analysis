@@ -188,7 +188,10 @@ out = {"prereg": PREREG, "PT": PT, "gate_pp": GATE, "surge_dummy_quantile": SURG
        "controls_ok": controls_ok, "gate_pass": gate_pass, "verdict": verdict,
        "metric": "balanced_accuracy (0.5*(TPR+TNR)) on raw next-day surge/drop events, class-weighted logit, expanding train-only",
        "surge": res["surge"], "drop": res["drop"]}
-json.dump(out, open(OUTJSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+def _np(o):  # numpy 타입 → 파이썬 (직렬화용, 로직 불변)
+    if hasattr(o, "item"): return o.item()
+    raise TypeError(str(type(o)))
+json.dump(out, open(OUTJSON, "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=_np)
 for m in ("surge", "drop"):
     r = res[m]
     print(f"[{m}] AR bacc={r['mean_bacc_ar']} test bacc={r['mean_bacc_test']} Δ={r['delta_bacc']}pp "
