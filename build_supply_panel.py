@@ -9,7 +9,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 ARCH="C:/Users/samsung/2026/02/wholesale-data"
 OUTDIR="C:/Users/samsung/2026/02/monet/daily-wholesale-analysis"
 OUT=f"{OUTDIR}/supply_price_panel.csv"
-LOG="C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/00db0015-45f3-4626-a813-9e0695065c80/scratchpad/panel_build.log"
+LOG="C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/cb80ca4b-a91f-403c-bb07-9751ba80601f/scratchpad/panel_build.log"
 GARAK={"110001"}; DAEJEON={"250001","250003"}
 # 물량 큰 공통 품목 위주(패널 크기 관리) — 필요시 확장
 PRODUCTS={"배추","무","양파","대파","사과","토마토","오이","깻잎","시금치","상추",
@@ -32,7 +32,7 @@ else:
 months=[]
 for y in (2018,2019,2020,2021,2022,2023,2024,2025,2026):
     for m in range(1,13):
-        if y==2026 and m>6: break
+        if y==2026 and m>7: break
         months.append(f"{y}-{m:02d}")
 
 for mo in months:
