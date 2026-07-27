@@ -42,6 +42,9 @@ AUCTION_BLOCKS = [
     # 태은이 2026-07-19: 쌈배추(배추 품종)를 배추에서 분리 → 서병수·김선우 부장(김기영 아님).
     #   _reclassify가 배추 품종 '쌈배추' 레코드의 product를 '쌈배추'로 재라벨 → 이 블록이 잡음.
     ("10", frozenset({"쌈배추"}), None, "00:20 (서병수, 김선우) 부장"),
+    # 태은이 2026-07-27: 얼갈이배추·열무의 **4kg 박스**만 서병수·김선우 (2kg·8kg는 김언중 유지).
+    #   _reclassify가 unit_qty=4인 레코드의 product를 '…(4kg)'로 재라벨 → 이 블록이 잡음.
+    ("10", frozenset({"얼갈이배추(4kg)", "열무(4kg)"}), None, "00:20 (서병수, 김선우) 부장"),
     ("10", None, frozenset({"갓", "배추", "숙주나물", "우엉대", "콩나물",
                             "얼갈이배추", "열무", "양배추"}), "00:20 (서병수, 김선우) 부장"),  # 토란대 제외 해제 → 서병수·김선우(공식, 2026-07-20)
     ("11", frozenset({"삼채"}), None, "00:20 (서병수, 김선우) 부장"),
@@ -129,7 +132,7 @@ for _i, _b in enumerate(AUCTION_BLOCKS):
 
 # 법인(공판장)별 입력 단위·방식이 상이하여 물량/비율 비교 시 주의가 필요한 품목 → * 표시.
 # (배추류 = 공판장 입력 단위·방식 상이 / 보리수 = 국산·수입 혼입 가능, 수입 품목과 겹침 주의)
-STAR_ITEMS = frozenset({"배추", "얼갈이배추", "열무", "실파", "쪽파", "보리수"})
+STAR_ITEMS = frozenset({"배추", "얼갈이배추", "얼갈이배추(4kg)", "열무", "열무(4kg)", "실파", "쪽파", "보리수"})
 
 
 def auction_block_index(product, category_code):
@@ -185,6 +188,18 @@ def _reclassify(item: dict) -> dict:
         return {**item, "product": "쌈배추"}
     elif product == "쪽파" and variety == "깐쪽파":
         return {**item, "product": "깐쪽파"}
+    elif product in ("얼갈이배추", "열무"):
+        # 태은이 2026-07-27: 얼갈이배추·열무의 **4kg 박스만** 서병수·김선우 (2kg·8kg 등은 김언중 유지).
+        #   규격은 unit_qty(= 포장 단위당 kg)에 들어 있다. 옛 판정 "4kg는 데이터로 구분 불가"는
+        #   포장·단량·품종만 보고 내린 것이었고 R-030으로 철회했다.
+        #   검산: unit_weight가 unit_qty의 정수배 — 얼갈이 435/435(5~7월), 열무 867/867(1~7월).
+        #   대조군: 사과 상자 10kg · 상추 상자 4kg · 대파 봉지 4kg · 수박 개당 8~11kg = 현실 규격 일치.
+        try:
+            spec_kg = float(item.get("unit_qty") or 0)
+        except (TypeError, ValueError):
+            spec_kg = 0.0
+        if abs(spec_kg - 4.0) < 0.01:
+            return {**item, "product": f"{product}(4kg)"}
     elif product == "곶감":
         if imported:
             return {**item, "product": "수입곶감"}
