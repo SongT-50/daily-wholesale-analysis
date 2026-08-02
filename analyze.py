@@ -104,6 +104,8 @@ def summarize_shipment(data: dict) -> str:
 
     lines = [f"\n# 전자송품장 출하예약 ({date} 출하예정)\n"]
     lines.append(f"총 출하예약: {total:,}건\n")
+    # 값의 정체 표기 (2026-07-31 실측). 안 붙이면 '그날 최종 예약'으로 읽힌다.
+    lines.append("> ⚠️ 수집 시점 스냅샷이다 — 최종값 아님. 원천은 뒤에 더 채워지고 취소로 줄기도 한다.\n")
 
     # 시장별 + 품목별 집계
     market_summary = {}

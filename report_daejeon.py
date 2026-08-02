@@ -62,6 +62,14 @@ def build_report(data: dict, date: str) -> str:
     lines = []
     lines.append(f"# 대전 전자송품장 출하예약 리포트 — {date}")
     lines.append(f"> 생성: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    # ⚠️ collected_at 은 tz 없는 로컬시각이다. GitHub Actions 러너에서는 UTC 라
+    #    그대로 찍으면 하루 전으로 읽힌다(7/29 리포트가 07-28 23:28 로 보인다).
+    #    변환은 하지 않는다 — 로컬 실행분은 이미 KST 라 우리가 어느 쪽인지 모른다.
+    #    그래서 값은 그대로 두고 "무엇인지"를 붙인다.
+    snap_at = (data.get("collected_at") or "")[:16].replace("T", " ")
+    tz_hint = " (수집기 로컬시각 · 자동수집분은 UTC = +9h 하면 KST)" if snap_at else ""
+    lines.append(f"> ⚠️ **{snap_at or '수집'} 시점 값**{tz_hint} — 최종 아님. 원천은 뒤에 더 채워지고 취소로 줄기도 한다.")
+    lines.append(f"> 전날 대비 증감으로 읽지 말 것(경과 시간 차이가 증감으로 보인다).")
     lines.append("")
 
     total_all_qty = 0
@@ -178,7 +186,8 @@ def build_telegram_message(report: str, date: str) -> str:
     weekdays = ["월", "화", "수", "목", "금", "토", "일"]
     wd = weekdays[dt.weekday()]
 
-    msg = f"📦 대전 출하예약 {date}({wd})\n\n"
+    msg = f"📦 대전 출하예약 {date}({wd})\n"
+    msg += "⚠️ 수집 시점 값(최종 아님) · 전날 대비 증감으로 읽지 마세요\n\n"
     # 마크다운 테이블은 텔레그램에서 안 되니까 텍스트로 변환
     for line in report.split("\n"):
         if line.startswith("## "):

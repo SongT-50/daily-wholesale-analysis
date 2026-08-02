@@ -5,6 +5,20 @@ data.go.kr 전자송품장 API → JSON 저장
 출하예정일(spmt_dt) 기준 = 경매 전 사전 등록된 출하예약 정보
 오늘 수집 시 내일(+1일) 출하예정 물량을 가져옴 → 수급 예측에 활용
 
+🔴 이 파일이 만드는 값이 무엇인지 (2026-07-31 실측, 안 읽고 쓰지 말 것)
+    이 산출물은 '그 출하예정일의 출하예약'이 아니라
+    'collected_at 시점에 원천이 답한 값'이다. 그 시점의 스냅샷 하나다.
+    · 원천은 그 뒤에도 계속 갱신된다. 우리는 한 번 찍고 다시 안 본다.
+    · 늘기만 하지 않는다. 취소·수정이 반영되어 줄기도 한다(대전노은 7/27 -4, 7/29 -11).
+    · 대조군 6/6 전부 변했다. 특정 날짜의 문제가 아니라 수집 설계의 성질이다.
+    ⇒ 그래서 '전날 대비 예약 급감' 류의 경보를 이 값으로 만들면 안 된다.
+       어제 것은 더 채워졌고 오늘 것은 덜 채워져서, 경과 시간 차이가 그대로 감소로 보인다.
+    ⚠️ 안 잰 것: 값이 언제 굳는지(안정 시점). 그래서 '지금 값이 최종'이라고도 못 한다.
+    전량 = intelligence/RESULT-shipment-drop-2026-07-29.md
+
+⚠️ collected_at 은 실행 환경의 로컬 시각이다(tz 정보 없음).
+    GitHub Actions 러너에서는 UTC 다 — KST 로 읽으면 9시간 어긋난다(2026-07-30 실제로 당함).
+
 사용: python collect_shipment.py [--date 2026-03-20] [--markets 250003,110001]
 기본: 내일 날짜, 전국 29개 시장 (1·2·3군 전체)
 """
@@ -180,6 +194,16 @@ def collect_shipment(date: str, market_codes: dict[str, str]) -> dict:
         "date": date,
         "data_type": "shipment_reservation",  # 출하예약
         "collected_at": datetime.now().isoformat(),
+        # 아래 3개 = 2026-07-31 추가. 기존 키는 하나도 안 바꿨다(읽는 코드 보호).
+        # 값의 정체를 파일 안에 박아둔다 — 이 파일만 열어본 사람도 알 수 있게.
+        "collected_at_tz": "naive-local",  # GitHub Actions 러너면 UTC. KST 아님
+        "value_semantics": "point_in_time_snapshot",
+        "value_note": (
+            "이 건수는 '해당 출하예정일의 최종 출하예약'이 아니라 "
+            "collected_at 시점에 원천이 답한 값이다. 원천은 이후에도 갱신되며 "
+            "취소·수정으로 줄기도 한다. 전날 대비 증감 경보에 쓰지 말 것. "
+            "근거=intelligence/RESULT-shipment-drop-2026-07-29.md"
+        ),
         "total_available": total_available,
         "total_collected": total_count,
         "market_count": len(market_codes),
@@ -199,6 +223,7 @@ def collect_shipment(date: str, market_codes: dict[str, str]) -> dict:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     print(f"\n총 {total_count:,}건 출하예약 수집 (전국 {total_available:,}건 중) → {out_file}")
+    print("  ※ 이 건수는 지금 이 시점의 값이다. 원천은 뒤에 더 채워지고 취소로 줄기도 한다.")
     print(f"아카이브: {archive_file}")
     return result
 
