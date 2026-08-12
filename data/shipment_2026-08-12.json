@@ -1,7 +1,7 @@
 {
   "date": "2026-08-12",
   "data_type": "shipment_reservation",
-  "collected_at": "2026-08-11T01:01:34.752128",
+  "collected_at": "2026-08-12T00:52:58.913540",
   "collected_at_tz": "naive-local",
   "value_semantics": "point_in_time_snapshot",
   "value_note": "이 건수는 '해당 출하예정일의 최종 출하예약'이 아니라 collected_at 시점에 원천이 답한 값이다. 원천은 이후에도 갱신되며 취소·수정으로 줄기도 한다. 전날 대비 증감 경보에 쓰지 말 것. 근거=intelligence/RESULT-shipment-drop-2026-07-29.md",
