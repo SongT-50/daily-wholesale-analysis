@@ -2,33 +2,12 @@
   "date": "2026-08-16",
   "data_type": "settlement",
   "api_source": "katSale",
-  "collected_at": "2026-08-17T00:09:11.306806",
+  "collected_at": "2026-08-17T22:36:28.859573",
   "total_available": 0,
   "total_collected": 0,
   "total_outliers_removed": 0,
   "market_count": 32,
   "markets": {
-    "110001": {
-      "market_name": "서울가락",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "110008": {
-      "market_name": "서울강서",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "210001": {
-      "market_name": "부산엄궁",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
     "210009": {
       "market_name": "부산반여",
       "total_available": 0,
@@ -36,8 +15,29 @@
       "outliers_removed": 0,
       "items": []
     },
-    "220001": {
-      "market_name": "대구북부",
+    "380303": {
+      "market_name": "창원내서",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "250003": {
+      "market_name": "대전노은",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "250001": {
+      "market_name": "대전오정",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "310401": {
+      "market_name": "안양",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
@@ -50,8 +50,43 @@
       "outliers_removed": 0,
       "items": []
     },
-    "230003": {
-      "market_name": "인천삼산",
+    "330201": {
+      "market_name": "충주",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "350301": {
+      "market_name": "익산",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "320301": {
+      "market_name": "강릉",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "380101": {
+      "market_name": "창원팔용",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "210001": {
+      "market_name": "부산엄궁",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "340101": {
+      "market_name": "천안",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
@@ -71,15 +106,8 @@
       "outliers_removed": 0,
       "items": []
     },
-    "250001": {
-      "market_name": "대전오정",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "250003": {
-      "market_name": "대전노은",
+    "220001": {
+      "market_name": "대구북부",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
@@ -92,71 +120,8 @@
       "outliers_removed": 0,
       "items": []
     },
-    "380201": {
-      "market_name": "울산",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "310101": {
-      "market_name": "수원",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "310401": {
-      "market_name": "안양",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "310901": {
-      "market_name": "안산",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "320101": {
-      "market_name": "춘천",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "320201": {
-      "market_name": "원주",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "320301": {
-      "market_name": "강릉",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "330101": {
-      "market_name": "청주",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "330201": {
-      "market_name": "충주",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "340101": {
-      "market_name": "천안",
+    "110008": {
+      "market_name": "서울강서",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
@@ -169,36 +134,15 @@
       "outliers_removed": 0,
       "items": []
     },
-    "350301": {
-      "market_name": "익산",
+    "380201": {
+      "market_name": "울산",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
       "items": []
     },
-    "350402": {
-      "market_name": "정읍",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "360301": {
-      "market_name": "순천",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "370101": {
-      "market_name": "포항",
-      "total_available": 0,
-      "collected": 0,
-      "outliers_removed": 0,
-      "items": []
-    },
-    "370401": {
-      "market_name": "안동",
+    "320101": {
+      "market_name": "춘천",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
@@ -211,15 +155,64 @@
       "outliers_removed": 0,
       "items": []
     },
-    "380101": {
-      "market_name": "창원팔용",
+    "330101": {
+      "market_name": "청주",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
       "items": []
     },
-    "380303": {
-      "market_name": "창원내서",
+    "350402": {
+      "market_name": "정읍",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "230003": {
+      "market_name": "인천삼산",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "310901": {
+      "market_name": "안산",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "370401": {
+      "market_name": "안동",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "360301": {
+      "market_name": "순천",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "320201": {
+      "market_name": "원주",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "310101": {
+      "market_name": "수원",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "370101": {
+      "market_name": "포항",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
@@ -227,6 +220,13 @@
     },
     "380401": {
       "market_name": "진주",
+      "total_available": 0,
+      "collected": 0,
+      "outliers_removed": 0,
+      "items": []
+    },
+    "110001": {
+      "market_name": "서울가락",
       "total_available": 0,
       "collected": 0,
       "outliers_removed": 0,
