@@ -139,6 +139,12 @@ VALID_CORPS = {
 }
 
 
+# 한 번의 collect() 동안 누적되는 조회 실패. collect() 진입 시 리셋한다.
+# 왜 전역인가 = fetch_page 의 반환 시그니처를 바꾸면 호출부를 전부 고쳐야 하고
+#   그 편집이 이 수정의 목적(실패를 잃지 않는 것)보다 위험이 크다.
+_FETCH_ERRORS = {"count": 0, "kinds": {}}
+
+
 def fetch_page(date: str, market_code: str, page: int = 1,
                num_rows: int = PAGE_SIZE) -> tuple[list[dict], int]:
     """정산정보 API 1페이지 조회. (items, totalCount) 반환"""
@@ -169,6 +175,13 @@ def fetch_page(date: str, market_code: str, page: int = 1,
     except RateLimitError:
         raise
     except Exception as e:
+        # ★ 2026-08-21 — 실패를 센다. 예전엔 조용히 [] , 0 을 돌려줬고
+        #   그러면 "원천이 0건" 과 "우리가 못 받았다" 가 저장 파일에서 같은 얼굴이 된다.
+        #   실물: 8/20 GA 회차가 32개 시장 전부 timed out 이었는데 파일엔 0건으로만 남았고
+        #   워크플로는 success 로 떴다. 8/18 은 원천에 38,503 건이 이미 있었다.
+        _FETCH_ERRORS["count"] += 1
+        _FETCH_ERRORS["kinds"][type(e).__name__] = \
+            _FETCH_ERRORS["kinds"].get(type(e).__name__, 0) + 1
         print(f"    Error: {e}")
         return [], 0
 
@@ -296,6 +309,9 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
     print(f"수집 시작: {date} (정산정보 API)")
     print(f"대상 시장: {len(market_codes)}개")
 
+    _FETCH_ERRORS["count"] = 0
+    _FETCH_ERRORS["kinds"] = {}
+
     all_data = {}
     total_count = 0
     total_available = 0
@@ -324,6 +340,19 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
         else:
             print(f"  [{name}] {len(cleaned):,}건")
 
+    # ★ 2026-08-21 — 이 파일이 자기 상태를 말하게 한다.
+    #   왜: "0 건" 의 뜻이 셋이나 되는데 파일은 그냥 0 만 적고 있었다.
+    #     ① 그날 진짜 거래가 없었다(일요일)
+    #     ② 공판장이 아직 안 올렸다(정산은 D+4 라야 완비 — 태은이 도메인, KNOWLEDGE.md)
+    #     ③ 우리가 조회에 실패했다(8/20 GA 회차 = 32시장 전부 timed out)
+    #   ①②③ 이 화면에서 같은 얼굴이라 나도 MONEY-T1 도 ②를 ③으로 읽었다.
+    #   ⇒ 세는 것을 파일에 적는다. 판정은 읽는 쪽이 한다.
+    # SETTLE_LAG_DAYS 정본 = settlement_report.py (env 로 조정 가능). 여기서 다시 정의하지 않는다.
+    from settlement_report import SETTLE_LAG_DAYS
+    _target = datetime.strptime(date, "%Y-%m-%d").date()
+    _lag = (datetime.now().date() - _target).days
+    _errs = _FETCH_ERRORS["count"]
+
     result = {
         "date": date,
         "data_type": "settlement",
@@ -333,8 +362,21 @@ def collect(date: str, market_codes: dict[str, str]) -> dict:
         "total_collected": total_count,
         "total_outliers_removed": total_outliers,
         "market_count": len(market_codes),
+        # 조회 실패 수. 0 이 아니면 이 파일의 건수는 하한이지 실측이 아니다.
+        "fetch_errors": _errs,
+        "fetch_error_kinds": dict(_FETCH_ERRORS["kinds"]),
+        # 정산 성숙도. 완비 전이면 건수가 적은 것이 정상이다.
+        "settle_lag_days": _lag,
+        "settle_complete": _lag >= SETTLE_LAG_DAYS,
+        "settle_note": (
+            f"D+{_lag} · 공판장 미완(완비 D+{SETTLE_LAG_DAYS})"
+            if _lag < SETTLE_LAG_DAYS else f"D+{_lag} · 완비 기준 통과"
+        ) + (f" · ⚠️ 조회 실패 {_errs}건 — 이 건수는 하한이다" if _errs else ""),
         "markets": all_data,
     }
+    if _errs:
+        print(f"  ⚠️ 조회 실패 {_errs}건 ({_FETCH_ERRORS['kinds']}) "
+              f"— 이 수집본은 완전하지 않다. backfill 이 다시 받는다.")
 
     OUTPUT_DIR.mkdir(exist_ok=True)
     out_file = OUTPUT_DIR / f"auction_{date}.json"
@@ -386,9 +428,27 @@ def backfill(date: str, market_codes: dict[str, str], max_lag_days: int = 5) -> 
             old_data = json.loads(out_file.read_bytes())
             old_count = old_data.get("total_collected", 0)
             collected = (old_data.get("collected_at", "") or "")[:10]
+            # ★ 2026-08-21 — skip 조건에 "그 수집을 믿을 수 있나" 를 더한다.
+            #   예전엔 수집 '시각' 만 봤다. 건수도 실패도 안 봤다.
+            #   ⇒ 조회가 통째로 실패해 0 건이 저장돼도 D+5 가 지나면 '안정화됨' 으로
+            #     분류되어 영영 다시 받지 않았다. 실물: 8/18 은 원천에 38,503 건이
+            #     있는데 우리 파일은 0 이었고, 8/23 이면 이 skip 에 걸려 굳을 참이었다.
+            #   판정:
+            #     - 신버전 파일(fetch_errors 있음) = 실패 0 이면 믿는다.
+            #       일요일처럼 진짜 0 건인 날도 실패 0 이라 정상 skip 된다.
+            #     - 구버전 파일(필드 없음) = 건수가 있으면 믿는다. 0 건이면 판단 불가라 다시 받는다.
+            #       한 번 다시 받으면 신버전이 되므로 이 예외는 스스로 사라진다.
+            if "fetch_errors" in old_data:
+                trustworthy = old_data.get("fetch_errors", 0) == 0
+                why = f"실패 {old_data.get('fetch_errors', 0)}건"
+            else:
+                trustworthy = old_count > 0
+                why = "구버전 파일이고 0건이라 판단 불가"
             if collected and (_date.fromisoformat(collected) - _date.fromisoformat(date)).days >= max_lag_days:
-                print(f"  - {date} 이미 안정화 (수집일 {collected}, D+{max_lag_days}↑) — 재수집 skip")
-                return False
+                if trustworthy:
+                    print(f"  - {date} 이미 안정화 (수집일 {collected}, D+{max_lag_days}↑) — 재수집 skip")
+                    return False
+                print(f"  ! {date} D+{max_lag_days} 지났으나 재수집한다 — {why}")
         except (json.JSONDecodeError, ValueError, OSError):
             pass
 
