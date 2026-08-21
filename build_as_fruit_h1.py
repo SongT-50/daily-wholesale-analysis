@@ -1,3 +1,5 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 # 안대명·심세영 부장 상반기(2026 1~6월) 수입과일 판매 실적 HTML 생성기
 # 데이터 = 대전중앙청과(25000301) 기준, 안대명·심세영 담당 품목(수입과일15+다래+수입땅콩).
 # 집계 산출 = scratchpad/as_h1.json (agg_h1.py). 이 스크립트는 그 JSON을 읽어 HTML만 만든다(재실행 가능).
@@ -88,7 +90,7 @@ html = f"""<!doctype html>
   <footer>제작 터미널: WHOLESALE-T3 · {date.today().isoformat()}</footer>
 </div></body></html>"""
 
-out = "C:/Users/samsung/2026/02/monet/presentations/as-fruit-h1-2026-07-20/index.html"
+out = f"{_MONET}/presentations/as-fruit-h1-2026-07-20/index.html"
 os.makedirs(os.path.dirname(out), exist_ok=True)
 open(out, "w", encoding="utf-8").write(html)
 print("생성:", out)

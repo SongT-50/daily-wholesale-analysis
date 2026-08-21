@@ -6,6 +6,8 @@ month_report.py 양식(라이트 테마, A4 landscape) 기반. 전년 비교 없
 사용: python settlement_report.py 2026-05-01 2026-05-23
   python settlement_report.py            → 2026-05 자동 (4법인 모두 정산된 마지막 날까지)
 """
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import os, json, sys, html as html_mod, argparse, calendar
 from pathlib import Path
 from collections import defaultdict
@@ -741,7 +743,7 @@ def generate_html(start, end, last_day, range_agg, day_agg, product_data, days, 
     return page
 
 
-BASE_OUT = Path(os.getenv("SETTLEMENT_OUT_DIR", "C:/Users/samsung/2026/02/monet/daily-wholesale-analysis"))
+BASE_OUT = Path(os.getenv("SETTLEMENT_OUT_DIR", f"{_MONET}/daily-wholesale-analysis"))
 
 
 def _resolve_out(out_arg, default_name):

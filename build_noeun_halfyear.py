@@ -11,6 +11,8 @@
    (경매사별 표는 aT 원천값 그대로 두고 총계·주석으로 대사 = 소계+보정 = 공식 상반기).
  - 검증: 중앙 835.6억/38,241톤 = 회사 월계표 공식(835.7/38,241) 정확 일치.
 """
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import os, sys, json, re
 import pandas as pd
 from datetime import date, timedelta
@@ -308,7 +310,7 @@ tr.corr td{{background:#fffdf2;color:#8a6d1f;font-weight:600;font-size:10.5px}}
 
 if __name__ == "__main__":
     html = build()
-    out_dir = os.path.join("C:/Users/samsung/2026/02/monet", "presentations",
+    out_dir = os.path.join(f"{_MONET}", "presentations",
                            "noeun-halfyear-2026-central-vs-wonhyup-2026-07-08")
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, "경매사별 상반기.html")  # 태은이 리네임(2026-07-08) 반영

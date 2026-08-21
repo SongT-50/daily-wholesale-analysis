@@ -1,3 +1,5 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 # OA-13419 가락 경매전반입 -> 대전 익일 가격 surge/drop 예측력 백테스트 v2 (지표 재정렬)
 # PREREG 개정2 = PREREG_oa13419_v2_metric_realign_2026-07-24.md (결과 前 동결).
 # v1 대비: 라벨=raw 익일 surge/drop 이벤트 / 지표=balanced accuracy / surge더미 3요소 / class-weighted / 부호검정+부트스트랩.
@@ -8,7 +10,7 @@ import numpy as np
 from collections import defaultdict
 rng = np.random.default_rng(20260724)
 
-BASE = "C:/Users/samsung/2026/02/monet/daily-wholesale-analysis/"
+BASE = f"{_MONET}/daily-wholesale-analysis/"
 ARR = BASE + "oa13419_garak_arrival.csv"; PANEL = BASE + "supply_price_panel.csv"
 OUTJSON = BASE + "RESULT_oa13419_v2_2026-07-24.json"
 PREREG = "PREREG_oa13419_v2_metric_realign_2026-07-24.md"

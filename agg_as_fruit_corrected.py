@@ -1,5 +1,7 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import sys, json
-sys.path.insert(0,"C:/Users/samsung/2026/02/monet/daily-wholesale-analysis")
+sys.path.insert(0,f"{_MONET}/daily-wholesale-analysis")
 from datetime import date
 from collections import defaultdict
 import pandas as pd

@@ -17,6 +17,8 @@
    회사 정산 자료로만 실제값 확보 → 품목 매핑으로 경매사 배분(특수품목 일부는 '소실 미배분').
  - 총계는 회사 월계표(2026 835.7억/38,241톤, 2025 881.4억/37,101톤)와 대조해 검증.
 """
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import sys, os, io, json, glob, re, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -274,7 +276,7 @@ CACHE = None  # set in __main__
 
 def _write_html(rows, days_cur, days_prev):
     html = build_html(rows, days_cur, days_prev)
-    out_dir = os.path.join("C:/Users/samsung/2026/02/monet", "presentations", "auctioneer-halfyear-2025vs2026")
+    out_dir = os.path.join(f"{_MONET}", "presentations", "auctioneer-halfyear-2025vs2026")
     os.makedirs(out_dir, exist_ok=True)
     for fn in ("print.html", "경매사별 상반기 실적 (올해 vs 작년, 실제값).html"):
         open(os.path.join(out_dir, fn), "w", encoding="utf-8").write(html)

@@ -1,3 +1,5 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 # OA-13419 v2 ROBUSTNESS ABLATION — class-weight OFF
 # ★ 사후 민감도 분석(결과 본 뒤). 정본 판정 = 사전등록된 class-weighted 버전(RESULT_oa13419_v2, VALID FAIL) 불변.
 # ★ 목적 = "VALID FAIL이 class-weight 선택의 산물인가"를 실측(G-E measurement-analyzer needs-more 갭 닫기).
@@ -9,7 +11,7 @@ import numpy as np
 from collections import defaultdict
 rng = np.random.default_rng(20260724)  # 원본과 동일 seed = NC 순열 동일 = 공정 비교
 
-BASE = "C:/Users/samsung/2026/02/monet/daily-wholesale-analysis/"
+BASE = f"{_MONET}/daily-wholesale-analysis/"
 ARR = BASE + "oa13419_garak_arrival.csv"; PANEL = BASE + "supply_price_panel.csv"
 OUTJSON = BASE + "RESULT_oa13419_v2_ABLATION_cw_off_2026-07-24.json"  # ★ 별도 파일
 PREREG = "PREREG_oa13419_v2_metric_realign_2026-07-24.md (ABLATION cw-off, 사후 robustness)"

@@ -1,10 +1,12 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 # OA-13419 가락 경매전 반입(GarakAuctionBefore) 전량 pull -> CSV
 # 반입 데이터만 저장(가격 조인 X = PREREG 무결성 유지). CS 계측기 게이트 + 백테스트 base용.
 import os, json, urllib.request, csv, time
 from dotenv import load_dotenv
-load_dotenv("C:/Users/samsung/2026/02/monet/.env")
+load_dotenv(f"{_MONET}/.env")
 KEY=os.environ["SEOUL_OPENAPI_KEY"]; SERVICE="GarakAuctionBefore"
-OUT="C:/Users/samsung/2026/02/monet/daily-wholesale-analysis/oa13419_garak_arrival.csv"
+OUT=f"{_MONET}/daily-wholesale-analysis/oa13419_garak_arrival.csv"
 LOG="C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/cb80ca4b-a91f-403c-bb07-9751ba80601f/scratchpad/oa13419_pull.log"
 def log(m):
     with open(LOG,"a",encoding="utf-8") as f: f.write(m+"\n")

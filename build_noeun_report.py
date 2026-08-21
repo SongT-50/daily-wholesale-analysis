@@ -9,6 +9,8 @@ settlement_report.py의 AUCTION_BLOCKS/load_range/auction_block_index를 그대�
   python build_noeun_report.py --end 2026-06-23  # 종료일 강제 (6/26 수동본 재현용)
   python build_noeun_report.py --verify          # 6/1~6/23 집계 vs 6/26 수동본 수치 대조(집계만)
 """
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import sys, io, os, re, argparse
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,7 +19,7 @@ from datetime import date
 from collections import defaultdict
 
 J, W = "25000301", "25000302"   # 중앙청과(우리), 원협노은
-MONET = "C:/Users/samsung/2026/02/monet"
+MONET = f"{_MONET}"
 
 
 def clean_label(label):

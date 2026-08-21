@@ -1,3 +1,5 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 # OA-13419 가락 경매전반입 -> 대전 익일 낙찰가 예측력 백테스트 (numpy 벡터화)
 # PREREG 개정1b 해시 1503b0415c5f139ab72c36b56b346210678509bc 설계 그대로. 구현만 벡터화(설계 불변).
 # expanding train-only 월climatology z-score + walk-forward logistic + PC+/NC 대조군 + 5pp 게이트.
@@ -6,7 +8,7 @@ import numpy as np
 from collections import defaultdict
 rng=np.random.default_rng(20260724)
 
-BASE="C:/Users/samsung/2026/02/monet/daily-wholesale-analysis/"
+BASE=f"{_MONET}/daily-wholesale-analysis/"
 ARR=BASE+"oa13419_garak_arrival.csv"; PANEL=BASE+"supply_price_panel.csv"
 OUTJSON=BASE+"RESULT_oa13419_backtest_2026-07-24.json"
 PREREG_HASH="1503b0415c5f139ab72c36b56b346210678509bc"

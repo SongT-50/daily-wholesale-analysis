@@ -8,6 +8,8 @@ GMAIL_ADDRESS / GMAIL_APP_PASSWORD 필요 (없으면 생성만).
   python send_noeun_email.py                   # 자동(6월 누계, 마지막 정산일까지)
   python send_noeun_email.py --end 2026-06-27  # 종료일 강제
 """
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import os, sys, smtplib, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from email.mime.multipart import MIMEMultipart
@@ -18,7 +20,7 @@ from datetime import date
 try:
     from dotenv import load_dotenv
     load_dotenv()
-    load_dotenv('C:/Users/samsung/2026/02/monet/.env')
+    load_dotenv(f'{_MONET}/.env')
 except Exception:
     pass
 

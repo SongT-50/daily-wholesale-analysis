@@ -1,3 +1,5 @@
+from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
 # 수입과일 상반기 실적 HTML — 중앙 vs 원협, 물량·금액 + 금액점유율(수치%) (태은이 2026-07-20).
 # 원협 4·5월 = aT유통공사 .xls 실거래로 보정(data.go.kr 계통출하 이중집계 과대 제거).
 # 집계 = scratchpad/as_corrected.json (agg_as_fruit_corrected.py). HTML만 생성(재실행 가능).
@@ -101,7 +103,7 @@ html = f"""<!doctype html>
   <footer>제작 터미널: WHOLESALE-T3 · {date.today().isoformat()}</footer>
 </div></body></html>"""
 
-out = "C:/Users/samsung/2026/02/monet/presentations/as-fruit-h1-2026-07-20/index.html"
+out = f"{_MONET}/presentations/as-fruit-h1-2026-07-20/index.html"
 os.makedirs(os.path.dirname(out), exist_ok=True)
 open(out, "w", encoding="utf-8").write(html)
 print("생성:", out)
