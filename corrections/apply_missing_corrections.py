@@ -1,5 +1,10 @@
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.parent.as_posix()
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+import tempfile as _tempfile
+_DATA = (_Path(_MONET).parent / "wholesale-data").as_posix()
+_DOWNLOADS = (_Path.home() / "Downloads").as_posix()
+_TMP = _Path(_tempfile.gettempdir()).as_posix()
 import openpyxl, json, glob, sys
 sys.path.insert(0,f'{_MONET}/daily-wholesale-analysis')
 import settlement_report as sr
@@ -8,7 +13,7 @@ from collections import Counter, defaultdict
 tmp=defaultdict(Counter)
 for y in (2025,2026):
     for m in range(1,7):
-        for p in glob.glob(f'C:/Users/samsung/2026/02/wholesale-data/{y}-{m:02d}/auction_*.json'):
+        for p in glob.glob(f'{_DATA}/{y}-{m:02d}/auction_*.json'):
             if p.endswith('.bak') or __import__('os').path.getsize(p)<300_000: continue
             try: d=json.load(open(p,encoding='utf-8'))
             except: continue
@@ -31,7 +36,7 @@ def mapp(name):
     cands=[p for p in products if name.startswith(p)]
     if cands: return cands[0]
     return None
-wb=openpyxl.load_workbook('C:/Users/samsung/Downloads/데이터 누락 일자 자료.xlsx', data_only=True)
+wb=openpyxl.load_workbook(f'{_DOWNLOADS}/데이터 누락 일자 자료.xlsx', data_only=True)
 def agg(sheets):
     auc=defaultdict(lambda:[0.0,0.0]); tot=[0.0,0.0]; unmapped=defaultdict(float)
     for sh in sheets:
@@ -83,6 +88,6 @@ for o in out:
     d=o['ca']-o['pa']
     print(f"  {sr.clean_label(o['n']) if hasattr(sr,'clean_label') else o['n']:26s} 올해{o['ca']:7.1f} 작년{o['pa']:7.1f} Δ{d:+6.1f} | 물량 올해{o['cq']:>6} 작년{o['pq']:>6}")
 print(f"\n합계: 올해 {tca:.1f}억/{tcq:,}톤 | 작년 {tpa:.1f}억/{tpq:,}톤 (월계표 835.7/881.4·38241/37101 대조)")
-SP_OUT='C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/7136e200-519f-41e9-9c67-5d75ce5467f5/scratchpad/auctioneer_real.json'
+SP_OUT=f'{_TMP}/auctioneer_real.json'
 json.dump(out,open(SP_OUT,'w',encoding='utf-8'),ensure_ascii=False,indent=1)
 print("저장:",SP_OUT)

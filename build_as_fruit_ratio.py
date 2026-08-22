@@ -1,6 +1,6 @@
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.as_posix()
-# 수입과일 상반기 실적 HTML — 중앙 vs 원협, 물량·금액 + 금액점유율(수치%) (태은이 2026-07-20).
+# 수입과일 상반기 실적 HTML — 중앙 vs 원협, 물량·금액 + 금액점유율(수치%) (요청자 2026-07-20).
 # 원협 4·5월 = aT유통공사 .xls 실거래로 보정(data.go.kr 계통출하 이중집계 과대 제거).
 # 집계 = scratchpad/as_corrected.json (agg_as_fruit_corrected.py). HTML만 생성(재실행 가능).
 import json, os

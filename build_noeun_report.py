@@ -11,6 +11,8 @@ settlement_report.py의 AUCTION_BLOCKS/load_range/auction_block_index를 그대�
 """
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.as_posix()
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+_DOWNLOADS = (_Path.home() / "Downloads").as_posix()
 import sys, io, os, re, argparse
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -470,7 +472,7 @@ if __name__ == '__main__':
         outpath = os.path.join(outdir, 'index.html')
         with open(outpath, 'w', encoding='utf-8') as f:
             f.write(html)
-        dl = os.path.join('C:/Users/samsung/Downloads', f'노은도매시장_관리자용_열세품목_{end.isoformat()}.html')
+        dl = os.path.join(f'{_DOWNLOADS}', f'노은도매시장_관리자용_열세품목_{end.isoformat()}.html')
         with open(dl, 'w', encoding='utf-8') as f:
             f.write(html)
         print(f"✅ 관리자용(열세품목) 보고서: {end.year}년 {end.month}월 누계 · 누계 물량 {meta['vol']:.1f}% / 당일 {meta['dvol']:.1f}%")
@@ -485,7 +487,7 @@ if __name__ == '__main__':
     with open(outpath, 'w', encoding='utf-8') as f:
         f.write(html)
     # Downloads 사본 (회의/인쇄용)
-    dl = os.path.join('C:/Users/samsung/Downloads',
+    dl = os.path.join(f'{_DOWNLOADS}',
                       f'노은도매시장_거래현황_{end.year}년{end.month}월누계_{end.isoformat()}.html')
     with open(dl, 'w', encoding='utf-8') as f:
         f.write(html)

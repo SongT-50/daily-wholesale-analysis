@@ -118,7 +118,7 @@ def prod_group(prods_lb, n=3):
 
 def build():
     m26 = month_totals(2026, use_xls_45=True)
-    # 누계 (2026 상반기, 중앙 vs 원협만 — 작년 비교 제거: 태은이 7/8 "순전히 올해 비교")
+    # 누계 (2026 상반기, 중앙 vs 원협만 — 작년 비교 제거: 요청자 7/8 "순전히 올해 비교")
     j26a = sum(v[0] for v in m26.values()); j26q = sum(v[1] for v in m26.values())
     w26a = sum(v[2] for v in m26.values()); w26q = sum(v[3] for v in m26.values())
     amt_share26 = pct(j26a, w26a); qty_share26 = pct(j26q, w26q)
@@ -135,7 +135,7 @@ def build():
 
     data, order, prods = auctioneer_halfyear()
     labels = sorted(order, key=lambda x: order[x])
-    # ★'나머지'와 '미배정'을 한 행으로 합치고, 실제 품목을 괄호에 나열 (태은이 7/8)
+    # ★'나머지'와 '미배정'을 한 행으로 합치고, 실제 품목을 괄호에 나열 (요청자 7/8)
     rows = []
     rq = [0.0, 0.0]; rw = [0.0, 0.0]; rprod = defaultdict(float)
     for lb in labels:
@@ -184,7 +184,7 @@ def build():
         arows += (f'<tr><td class="lbl"{wrap}>{nm} <span class="sub">({pg})</span></td>'
                   f'<td class="colj">{kg(jq)}</td><td class="colj">{won(ja)}</td>'
                   f'<td class="colw">{kg(wq)}</td><td class="colw">{won(wa)}</td>'
-                  f'<td class="pct">{p:.1f}%</td></tr>')  # 태은이 2026-07-23: 파랑/주황 배경·경매사명 강조 제거 → 비율 글자만
+                  f'<td class="pct">{p:.1f}%</td></tr>')  # 요청자 2026-07-23: 파랑/주황 배경·경매사명 강조 제거 → 비율 글자만
 
     HTML = f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -313,7 +313,7 @@ if __name__ == "__main__":
     out_dir = os.path.join(f"{_MONET}", "presentations",
                            "noeun-halfyear-2026-central-vs-wonhyup-2026-07-08")
     os.makedirs(out_dir, exist_ok=True)
-    out = os.path.join(out_dir, "경매사별 상반기.html")  # 태은이 리네임(2026-07-08) 반영
+    out = os.path.join(out_dir, "경매사별 상반기.html")  # 요청자 리네임(2026-07-08) 반영
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
     dl = os.path.join(DL, "노은도매시장_거래현황_2026상반기_중앙vs원협_2026-07-08.html")

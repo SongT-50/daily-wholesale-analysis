@@ -19,6 +19,8 @@
 """
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.as_posix()
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+_DATA = (_Path(_MONET).parent / "wholesale-data").as_posix()
 import sys, os, io, json, glob, re, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +31,7 @@ from collections import defaultdict, Counter
 import openpyxl
 
 J = "25000301"                          # 중앙청과 노은
-ARCH = os.getenv("AUCTION_ARCHIVE_DIR", "C:/Users/samsung/2026/02/wholesale-data")
+ARCH = os.getenv("AUCTION_ARCHIVE_DIR", f"{_DATA}")
 XLSX = os.path.join(HERE, 'corrections', 'source', '데이터누락일자자료_2026H1.xlsx')
 CORR = json.load(open(os.path.join(HERE, 'corrections', 'missing_corrections.json'), encoding='utf-8'))
 MDAYS = {k: v for k, v in CORR['missing_days'].items() if not k.startswith('_')}

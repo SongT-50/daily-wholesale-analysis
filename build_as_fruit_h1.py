@@ -1,5 +1,8 @@
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.as_posix()
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+import tempfile as _tempfile
+_TMP = _Path(_tempfile.gettempdir()).as_posix()
 # 안대명·심세영 부장 상반기(2026 1~6월) 수입과일 판매 실적 HTML 생성기
 # 데이터 = 대전중앙청과(25000301) 기준, 안대명·심세영 담당 품목(수입과일15+다래+수입땅콩).
 # 집계 산출 = scratchpad/as_h1.json (agg_h1.py). 이 스크립트는 그 JSON을 읽어 HTML만 만든다(재실행 가능).
@@ -7,7 +10,7 @@ import json, sys, os
 from datetime import date
 sys.stdout.reconfigure(encoding="utf-8")
 
-SCR = "C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/42e5fa00-ba61-4d87-863d-64f49b83cc1e/scratchpad/as_h1.json"
+SCR = f"{_TMP}/as_h1.json"
 d = json.load(open(SCR, encoding="utf-8"))
 rows, tq, ta, tc, days = d["rows"], d["tq"], d["ta"], d["tc"], d["days"]
 

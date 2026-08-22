@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.as_posix()
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+import tempfile as _tempfile
+_DATA = (_Path(_MONET).parent / "wholesale-data").as_posix()
+_TMP = _Path(_tempfile.gettempdir()).as_posix()
 # 익일예측 측정용 데이터 패널: (date, market_group, product) -> total_qty(공급), amount, avg_price
 # market_group: garak(110001) / daejeon(250001+250003) / national(전 시장 합)
 # 목적: CS (B)익일예측 게이트 측정의 base 데이터. supply[d]->surge[d+1] 임의 측정 가능하게 flexible 패널.
@@ -8,10 +12,10 @@ _MONET = _Path(__file__).resolve().parent.parent.as_posix()
 import json, glob, os, sys
 from collections import defaultdict
 sys.stdout.reconfigure(encoding='utf-8')
-ARCH="C:/Users/samsung/2026/02/wholesale-data"
+ARCH=f"{_DATA}"
 OUTDIR=f"{_MONET}/daily-wholesale-analysis"
 OUT=f"{OUTDIR}/supply_price_panel.csv"
-LOG="C:/Users/samsung/AppData/Local/Temp/claude/C--Users-samsung-2026-02-monet/cb80ca4b-a91f-403c-bb07-9751ba80601f/scratchpad/panel_build.log"
+LOG=f"{_TMP}/panel_build.log"
 GARAK={"110001"}; DAEJEON={"250001","250003"}
 # 물량 큰 공통 품목 위주(패널 크기 관리) — 필요시 확장
 PRODUCTS={"배추","무","양파","대파","사과","토마토","오이","깻잎","시금치","상추",

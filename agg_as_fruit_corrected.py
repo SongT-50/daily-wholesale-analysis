@@ -1,5 +1,7 @@
 from pathlib import Path as _Path  # 경로는 파일 위치에서 얻는다(하드코딩 금지)
 _MONET = _Path(__file__).resolve().parent.parent.as_posix()
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+_DOWNLOADS = (_Path.home() / "Downloads").as_posix()
 import sys, json
 sys.path.insert(0,f"{_MONET}/daily-wholesale-analysis")
 from datetime import date
@@ -8,10 +10,10 @@ import pandas as pd
 from settlement_report import load_range
 J,W="25000301","25000302"
 AS15={"듀리안","레몬","망고","망고스턴","바나나","아로니아","아보카도","오렌지","용과","자몽","참다래(키위)","체리","코코넛","탄제린","파인애플"}
-# 태은이 2026-07-21: 수입 포도·블루베리·멜론 추가(안대명·심세영). product는 _reclassify 거친 값.
+# 요청자 2026-07-21: 수입 포도·블루베리·멜론 추가(안대명·심세영). product는 _reclassify 거친 값.
 ASX=AS15|{"다래","수입땅콩","수입곶감","수입호두","수입포도","수입블루베리","수입멜론"}
-XLS={4:"C:/Users/samsung/Downloads/도매시장 거래현황 2026-04-01-2026-04-30.xls",
-     5:"C:/Users/samsung/Downloads/도매시장 거래현황 2026-05-01-2026-05-31.xls"}
+XLS={4:f"{_DOWNLOADS}/도매시장 거래현황 2026-04-01-2026-04-30.xls",
+     5:f"{_DOWNLOADS}/도매시장 거래현황 2026-05-01-2026-05-31.xls"}
 def num(v):
     try:return float(v)
     except:return 0.0

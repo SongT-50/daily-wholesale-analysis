@@ -10,6 +10,9 @@
 요약은 stdout, 상세는 audit_coverage_result.json.
 실행: python audit_coverage.py [--archive <dir>] [--recent-skip 5]
 """
+from pathlib import Path as _Path  # 경로는 파일 위치·환경에서 얻는다(하드코딩 금지)
+_MONET = _Path(__file__).resolve().parent.parent.as_posix()
+_DATA = (_Path(_MONET).parent / "wholesale-data").as_posix()
 import json, glob, sys, argparse, statistics
 from pathlib import Path
 from datetime import date, timedelta
@@ -18,7 +21,7 @@ from collections import defaultdict, Counter
 sys.stdout.reconfigure(encoding="utf-8")
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--archive", default="C:/Users/samsung/2026/02/wholesale-data")
+ap.add_argument("--archive", default=f"{_DATA}")
 ap.add_argument("--recent-skip", type=int, default=5,
                 help="최근 N영업일 제외(백필 진행 중이라 누락 아님)")
 ap.add_argument("--out", default="audit_coverage_result.json")
